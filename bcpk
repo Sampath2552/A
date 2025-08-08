@@ -1,0 +1,890 @@
+
+// v4
+
+import React, { useState } from 'react';
+import {
+  Box,
+  Drawer,
+  AppBar,
+  Toolbar,
+  List,
+  Typography,
+  Divider,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  IconButton,
+  Avatar,
+  Badge,
+  Card,
+  CardContent,
+  Grid,
+  Button,
+  Chip,
+  LinearProgress,
+  useTheme,
+  useMediaQuery,
+  Stack,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Switch,
+  FormControlLabel,
+} from '@mui/material';
+import {
+  Menu as MenuIcon,
+  Dashboard,
+  AccountBalance,
+  CreditCard,
+  TrendingUp,
+  Person,
+  Settings,
+  Notifications,
+  Search,
+  Visibility,
+  VisibilityOff,
+  ArrowUpward,
+  ArrowDownward,
+  Send,
+  Add,
+  Receipt,
+  AttachMoney,
+  AccountBalanceWallet,
+  MoreVert,
+  FilterList,
+  Download,
+  Security,
+  Help,
+  Logout,
+  Close,
+  NotificationsActive,
+  AccountCircle,
+  Phone,
+  Email,
+  LocationOn,
+  Edit,
+} from '@mui/icons-material';
+
+import { createTheme, ThemeProvider } from '@mui/material/styles';
+
+import SideMenu from './SideMenu';
+
+const drawerWidth = 280;
+
+
+// Modern Banking Theme
+const bankingTheme = createTheme({
+  palette: {
+    mode: 'light',
+    primary: {
+      main: '#1565C0',
+      light: '#42A5F5',
+      dark: '#0D47A1',
+      contrastText: '#ffffff',
+    },
+    secondary: {
+      main: '#00C853',
+      light: '#69F0AE',
+      dark: '#00A152',
+    },
+    background: {
+      default: '#F8FAFC',
+      paper: '#FFFFFF',
+    },
+    text: {
+      primary: '#1E293B',
+      secondary: '#64748B',
+    },
+    error: {
+      main: '#DC2626',
+    },
+    warning: {
+      main: '#F59E0B',
+    },
+    success: {
+      main: '#10B981',
+    },
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    h4: {
+      fontWeight: 600,
+      fontSize: '2rem',
+    },
+    h5: {
+      fontWeight: 600,
+      fontSize: '1.5rem',
+    },
+    h6: {
+      fontWeight: 600,
+      fontSize: '1.25rem',
+    },
+    subtitle1: {
+      fontWeight: 500,
+    },
+    body1: {
+      fontSize: '0.95rem',
+    },
+  },
+  shape: {
+    borderRadius: 12,
+  },
+  components: {
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06)',
+          border: '1px solid #E2E8F0',
+          transition: 'all 0.2s ease',
+          '&:hover': {
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.06)',
+            transform: 'translateY(-1px)',
+          },
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+          fontWeight: 500,
+          borderRadius: 8,
+        },
+        contained: {
+          boxShadow: 'none',
+          '&:hover': {
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+          },
+        },
+      },
+    },
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          borderRight: '1px solid #E2E8F0',
+          boxShadow: 'none',
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#FFFFFF',
+          color: '#1E293B',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+          borderBottom: '1px solid #E2E8F0',
+        },
+      },
+    },
+    MuiListItemButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          margin: '2px 12px',
+          '&:hover': {
+            backgroundColor: '#F1F5F9',
+          },
+          '&.Mui-selected': {
+            backgroundColor: '#EBF4FF',
+            borderLeft: '3px solid #1565C0',
+            '&:hover': {
+              backgroundColor: '#EBF4FF',
+            },
+          },
+        },
+      },
+    },
+  },
+});
+
+const BankingDashboard = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [balanceVisible, setBalanceVisible] = useState(true);
+
+  const [notificationDrawerOpen, setNotificationDrawerOpen] = useState(false);
+  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
+
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
+
+  
+
+  const notifications = [
+    {
+      id: 1,
+      title: 'Payment Received',
+      message: 'You received $2,500 from ABC Corp salary',
+      time: '5 min ago',
+      type: 'success',
+      unread: true,
+    },
+    {
+      id: 2,
+      title: 'Card Payment',
+      message: 'Payment of $125.50 at Whole Foods Market',
+      time: '2 hours ago',
+      type: 'info',
+      unread: true,
+    },
+    {
+      id: 3,
+      title: 'Security Alert',
+      message: 'New device login from iPhone 14',
+      time: '1 day ago',
+      type: 'warning',
+      unread: false,
+    },
+  ];
+
+  const recentTransactions = [
+    {
+      id: 1,
+      description: 'Salary - ABC Corporation',
+      category: 'Income',
+      amount: 3500.00,
+      type: 'credit',
+      date: 'Today, 9:30 AM',
+      status: 'completed'
+    },
+    {
+      id: 2,
+      description: 'Grocery Store - Whole Foods',
+      category: 'Food & Dining',
+      amount: -125.50,
+      type: 'debit',
+      date: 'Yesterday, 6:45 PM',
+      status: 'completed'
+    },
+    {
+      id: 3,
+      description: 'Netflix Subscription',
+      category: 'Entertainment',
+      amount: -15.99,
+      type: 'debit',
+      date: 'Dec 15, 2024',
+      status: 'completed'
+    },
+    {
+      id: 4,
+      description: 'Transfer to Savings',
+      category: 'Transfer',
+      amount: -500.00,
+      type: 'transfer',
+      date: 'Dec 14, 2024',
+      status: 'completed'
+    },
+    {
+      id: 5,
+      description: 'Electric Bill Payment',
+      category: 'Utilities',
+      amount: -89.32,
+      type: 'debit',
+      date: 'Dec 13, 2024',
+      status: 'completed'
+    },
+  ];
+
+  const accounts = [
+    { name: 'Primary Checking', number: '****4567', balance: 12845.32, type: 'checking' },
+    { name: 'High-Yield Savings', number: '****8901', balance: 45678.90, type: 'savings' },
+    { name: 'TrendingDown Portfolio', number: '****2345', balance: 128456.78, type: 'TrendingDown' },
+  ];
+
+  const NotificationDrawer = () => (
+    <Drawer
+      anchor="right"
+      open={notificationDrawerOpen}
+      onClose={() => setNotificationDrawerOpen(false)}
+      sx={{
+        '& .MuiDrawer-paper': {
+          width: 400,
+          p: 0,
+        },
+      }}
+    >
+      <Box sx={{ p: 3, borderBottom: '1px solid #E2E8F0' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            Notifications
+          </Typography>
+          <IconButton onClick={() => setNotificationDrawerOpen(false)} size="small">
+            <Close />
+          </IconButton>
+        </Box>
+      </Box>
+
+      <Box sx={{ p: 2 }}>
+        {notifications.map((notification) => (
+          <Paper
+            key={notification.id}
+            sx={{
+              p: 2,
+              mb: 2,
+              border: notification.unread ? '1px solid #1565C0' : '1px solid #E2E8F0',
+              backgroundColor: notification.unread ? '#F0F9FF' : 'white',
+              cursor: 'pointer',
+              '&:hover': {
+                backgroundColor: '#F8FAFC',
+              },
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: notification.type === 'success' ? '#10B981' : 
+                                 notification.type === 'warning' ? '#F59E0B' : '#1565C0',
+                  mt: 1,
+                }}
+              />
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                  {notification.title}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>
+                  {notification.message}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                  {notification.time}
+                </Typography>
+              </Box>
+            </Box>
+          </Paper>
+        ))}
+      </Box>
+
+      <Box sx={{ p: 2, borderTop: '1px solid #E2E8F0' }}>
+        <Button fullWidth variant="outlined">
+          View All Notifications
+        </Button>
+      </Box>
+    </Drawer>
+  );
+
+  const ProfileDrawer = () => (
+    <Drawer
+      anchor="right"
+      open={profileDrawerOpen}
+      onClose={() => setProfileDrawerOpen(false)}
+      sx={{
+        '& .MuiDrawer-paper': {
+          width: 380,
+          p: 0,
+        },
+      }}
+    >
+      <Box sx={{ p: 3, borderBottom: '1px solid #E2E8F0' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            Profile
+          </Typography>
+          <IconButton onClick={() => setProfileDrawerOpen(false)} size="small">
+            <Close />
+          </IconButton>
+        </Box>
+      </Box>
+
+      <Box sx={{ p: 3 }}>
+        <Box sx={{ textAlign: 'center', mb: 3 }}>
+          <Avatar
+            sx={{
+              width: 80,
+              height: 80,
+              mx: 'auto',
+              mb: 2,
+              backgroundColor: '#1565C0',
+              fontSize: '2rem',
+            }}
+          >
+            JD
+          </Avatar>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 0.5 }}>
+            John Doe
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Customer ID: #BC789456
+          </Typography>
+          <Chip
+            label="Premium Customer"
+            size="small"
+            sx={{
+              backgroundColor: '#10B981',
+              color: 'white',
+              fontWeight: 500,
+            }}
+          />
+        </Box>
+
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
+              Contact Information
+            </Typography>
+            <Stack spacing={2}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Email sx={{ color: 'text.secondary' }} />
+                <Box>
+                  <Typography variant="body2" color="text.secondary">Email</Typography>
+                  <Typography variant="body2">john.doe@email.com</Typography>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Phone sx={{ color: 'text.secondary' }} />
+                <Box>
+                  <Typography variant="body2" color="text.secondary">Phone</Typography>
+                  <Typography variant="body2">+1 (555) 123-4567</Typography>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <LocationOn sx={{ color: 'text.secondary' }} />
+                <Box>
+                  <Typography variant="body2" color="text.secondary">Address</Typography>
+                  <Typography variant="body2">123 Main St, New York, NY</Typography>
+                </Box>
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+
+        <List sx={{ p: 0 }}>
+          <ListItem disablePadding>
+            <ListItemButton>
+              <ListItemIcon>
+                <Edit />
+              </ListItemIcon>
+              <ListItemText primary="Edit Profile" />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding>
+            <ListItemButton>
+              <ListItemIcon>
+                <Security />
+              </ListItemIcon>
+              <ListItemText primary="Security Settings" />
+            </ListItemButton>
+          </ListItem>
+          <ListItem disablePadding>
+            <ListItemButton>
+              <ListItemIcon>
+                <Help />
+              </ListItemIcon>
+              <ListItemText primary="Help & Support" />
+            </ListItemButton>
+          </ListItem>
+          <Divider sx={{ my: 1 }} />
+          <ListItem disablePadding>
+            <ListItemButton sx={{ color: 'error.main' }}>
+              <ListItemIcon sx={{ color: 'error.main' }}>
+                <Logout />
+              </ListItemIcon>
+              <ListItemText primary="Sign Out" />
+            </ListItemButton>
+          </ListItem>
+        </List>
+      </Box>
+    </Drawer>
+  );
+
+  
+
+  return (
+    <ThemeProvider theme={bankingTheme}>
+      <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }}>
+        {/* Header */}
+        <AppBar
+          position="fixed"
+          elevation={0}
+          sx={{
+            width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
+            ml: { md: `${drawerWidth}px` },
+          }}
+        >
+          <Toolbar>
+            <IconButton
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ mr: 2, display: { md: 'none' } }}
+            >
+              <MenuIcon />
+            </IconButton>
+            <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>
+              Dashboard
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton>
+                <Search />
+              </IconButton>
+              <IconButton onClick={() => setNotificationDrawerOpen(true)}>
+                <Badge badgeContent={notifications.filter(n => n.unread).length} color="error">
+                  <Notifications />
+                </Badge>
+              </IconButton>
+              <Avatar
+                onClick={() => setProfileDrawerOpen(true)}
+                sx={{
+                  width: 32,
+                  height: 32,
+                  backgroundColor: 'primary.main',
+                  cursor: 'pointer',
+                  ml: 1,
+                }}
+              >
+                JD
+              </Avatar>
+            </Box>
+          </Toolbar>
+        </AppBar>
+
+             <SideBar/>
+        
+
+        {/* Main Content */}
+        <Box
+          component="main"
+          sx={{
+            flexGrow: 1,
+            width: { xs: '100%', md: `calc(100% - ${drawerWidth}px)` },
+            p: 3,
+            pt: 11,
+          }}
+        >
+          {/* Account Cards */}
+          <Grid container spacing={3} sx={{ mb: 4 }}>
+            {accounts.map((account, index) => (
+              <Grid item xs={12} md={4} key={account.name}>
+                <Card>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                          {account.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {account.number}
+                        </Typography>
+                      </Box>
+                      <IconButton size="small">
+                        <MoreVert />
+                      </IconButton>
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                      <Typography variant="h4" sx={{ fontWeight: 600 }}>
+                        ${account.balance.toLocaleString()}
+                      </Typography>
+                      {index === 0 && (
+                        <IconButton size="small" onClick={() => setBalanceVisible(!balanceVisible)}>
+                          {balanceVisible ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      )}
+                    </Box>
+
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button size="small" variant="contained" startIcon={<Send />}>
+                        Transfer
+                      </Button>
+                      <Button size="small" variant="outlined" startIcon={<Add />}>
+                        Deposit
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+
+          <Grid container spacing={3}>
+            {/* Recent Transactions */}
+            <Grid item xs={12} lg={8}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                      Recent Transactions
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Button size="small" startIcon={<FilterList />}>
+                        Filter
+                      </Button>
+                      <Button size="small" startIcon={<Download />}>
+                        Export
+                      </Button>
+                    </Box>
+                  </Box>
+
+                  <TableContainer>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Description</TableCell>
+                          <TableCell>Category</TableCell>
+                          <TableCell>Date</TableCell>
+                          <TableCell align="right">Amount</TableCell>
+                          <TableCell>Status</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {recentTransactions.map((transaction) => (
+                          <TableRow key={transaction.id} hover>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                {transaction.description}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary">
+                                {transaction.category}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="body2" color="text.secondary">
+                                {transaction.date}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontWeight: 600,
+                                  color: transaction.type === 'credit' ? 'success.main' :
+                                         transaction.type === 'transfer' ? 'warning.main' : 'error.main',
+                                }}
+                              >
+                                {transaction.type === 'credit' ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={transaction.status}
+                                size="small"
+                                sx={{
+                                  backgroundColor: transaction.status === 'completed' ? '#DCFCE7' : '#FEF3C7',
+                                  color: transaction.status === 'completed' ? '#166534' : '#92400E',
+                                  fontWeight: 500,
+                                }}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            {/* Quick Actions & Info */}
+            <Grid item xs={12} lg={4}>
+              <Stack spacing={3}>
+                {/* Quick Actions */}
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
+                      Quick Actions
+                    </Typography>
+                    <Stack spacing={2}>
+                      <Button variant="contained" fullWidth startIcon={<Send />}>
+                        Send Money
+                      </Button>
+                      <Button variant="outlined" fullWidth startIcon={<Receipt />}>
+                        Pay Bills
+                      </Button>
+                      <Button variant="outlined" fullWidth startIcon={<CreditCard />}>
+                        Card Services
+                      </Button>
+                      <Button variant="outlined" fullWidth startIcon={<TrendingUp />}>
+                        TrendingDowns
+                      </Button>
+                    </Stack>
+                  </CardContent>
+                </Card>
+
+                {/* Account Summary */}
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
+                      Monthly Summary
+                    </Typography>
+                    <Stack spacing={2}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" color="text.secondary">Income</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.main' }}>
+                          +$5,240.00
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" color="text.secondary">Expenses</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
+                          -$3,180.50
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Typography variant="body2" color="text.secondary">Net Income</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          $2,059.50
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Stack>
+            </Grid>
+          </Grid>
+        </Box>
+
+        <NotificationDrawer />
+        <ProfileDrawer />
+      </Box>
+    </ThemeProvider>
+  );
+};
+
+export default BankingDashboard;
+
+
+
+const SideBar = () => {
+    const menuItems = [
+    { text: 'Dashboard', icon: <Dashboard />, badge: null },
+    { text: 'Accounts', icon: <AccountBalance />, badge: null },
+    { text: 'Cards', icon: <CreditCard />, badge: '2' },
+    { text: 'Transactions', icon: <Receipt />, badge: null },
+    { text: 'Investments', icon: <TrendingUp />, badge: null },
+    { text: 'Loans', icon: <AttachMoney />, badge: null },
+    { text: 'Profile', icon: <Person />, badge: null },
+    { text: 'Settings', icon: <Settings />, badge: null },
+  ];
+  const drawerWidth = 240;
+  const handleDrawerToggle = ()=>{}
+  const [selectedMenuItem, setSelectedMenuItem] = React.useState(0);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const drawer = (
+      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ p: 3, borderBottom: '1px solid #E2E8F0' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                backgroundColor: '#1565C0',
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <AccountBalanceWallet sx={{ color: 'white' }} />
+            </Box>
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1 }}>
+                FinC
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Digital Banking
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+  
+        <List sx={{ flexGrow: 1, py: 2 }}>
+          {menuItems.map((item, index) => (
+            <ListItem key={item.text} disablePadding>
+              <ListItemButton
+                selected={selectedMenuItem === index}
+                onClick={() => setSelectedMenuItem(index)}
+              >
+                <ListItemIcon
+                  sx={{
+                    color: selectedMenuItem === index ? 'primary.main' : 'text.secondary',
+                    minWidth: 40,
+                  }}
+                >
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText
+                  primary={item.text}
+                  sx={{
+                    '& .MuiTypography-root': {
+                      fontWeight: selectedMenuItem === index ? 600 : 400,
+                      color: selectedMenuItem === index ? 'primary.main' : 'text.primary',
+                    },
+                  }}
+                />
+                {item.badge && (
+                  <Chip
+                    size="small"
+                    label={item.badge}
+                    sx={{
+                      height: 20,
+                      fontSize: '0.75rem',
+                      backgroundColor: 'secondary.main',
+                      color: 'white',
+                    }}
+                  />
+                )}
+              </ListItemButton>
+            </ListItem>
+          ))}
+        </List>
+  
+        <Box sx={{ p: 2, borderTop: '1px solid #E2E8F0' }}>
+          <Card sx={{ backgroundColor: '#F0F9FF' }}>
+            <CardContent sx={{ p: 2 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                Need Help?
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontSize: '0.875rem' }}>
+                Contact our 24/7 support team
+              </Typography>
+              <Button size="small" variant="contained" fullWidth>
+                Get Support
+              </Button>
+            </CardContent>
+          </Card>
+        </Box>
+      </Box>
+    );
+
+  return (
+    <>
+    {/* Sidebar */}
+        <Box component="nav" sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}>
+          <Drawer
+            variant="temporary"
+            open={mobileOpen}
+            onClose={handleDrawerToggle}
+            ModalProps={{ keepMounted: true }}
+            sx={{
+              display: { xs: 'block', md: 'none' },
+              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            }}
+          >
+            {drawer}
+          </Drawer>
+          <Drawer
+            variant="permanent"
+            sx={{
+              display: { xs: 'none', md: 'block' },
+              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+            }}
+            open
+          >
+            {drawer}
+          </Drawer>
+        </Box>
+    
+    </>
+  )
+}
+
+
