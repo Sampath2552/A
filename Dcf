@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  airflow-webserver:
+    image: airflow-3.0.6-spark:latest
+    networks:
+      - airflow_spark_network
+
+  airflow-scheduler:
+    image: airflow-3.0.6-spark:latest
+    networks:
+      - airflow_spark_network
+
+  spark-master:
+    build: ./spark
+    container_name: spark-master
+    ports:
+      - "7077:7077"
+    networks:
+      - airflow_spark_network
+
+  spark-worker:
+    build: ./spark
+    container_name: spark-worker
+    depends_on:
+      - spark-master
+    networks:
+      - airflow_spark_network
+
+networks:
+  airflow_spark_network:
+    driver: bridge
