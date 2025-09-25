@@ -1,0 +1,17 @@
+FROM apache/airflow:3.0.6-python3.9
+
+USER root
+
+# Copy Spark binaries into Airflow container
+COPY spark-3.5.2-bin-hadoop3.tgz /opt/
+RUN tar -xzf /opt/spark-3.5.2-bin-hadoop3.tgz -C /opt/ && \
+    mv /opt/spark-3.5.2-bin-hadoop3 /opt/spark && \
+    rm /opt/spark-3.5.2-bin-hadoop3.tgz
+
+ENV SPARK_HOME=/opt/spark
+ENV PATH=$SPARK_HOME/bin:$PATH
+
+USER airflow
+
+# Copy DAGs
+COPY dags/ /opt/airflow/dags
