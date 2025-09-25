@@ -1,0 +1,17 @@
+FROM openjdk:11-jdk-slim
+
+# Copy Spark binaries
+COPY spark-3.5.2-bin-hadoop3.tgz /opt/
+RUN tar -xzf /opt/spark-3.5.2-bin-hadoop3.tgz -C /opt/ && \
+    mv /opt/spark-3.5.2-bin-hadoop3 /opt/spark && \
+    rm /opt/spark-3.5.2-bin-hadoop3.tgz
+
+ENV SPARK_HOME=/opt/spark
+ENV PATH=$SPARK_HOME/bin:$PATH
+
+# Copy PySpark scripts
+WORKDIR /opt/spark-apps
+COPY apps/ /opt/spark-apps
+
+# Start Spark master + worker
+CMD ["/bin/bash", "-c", "$SPARK_HOME/sbin/start-master.sh && $SPARK_HOME/sbin/start-worker.sh spark://localhost:7077 && sleep infinity"]
