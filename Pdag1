@@ -1,0 +1,15 @@
+from airflow.decorators import dag
+from airflow.utils.dates import days_ago
+from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+
+@dag(default_args={'owner': 'airflow'}, schedule_interval=None, start_date=days_ago(1), catchup=False)
+def spark_submit_remote():
+    spark_job = SparkSubmitOperator(
+        task_id='run_remote_spark',
+        application='/opt/spark-apps/example_script.py',  # Path as seen by Spark container
+        conf={"spark.master": "spark://spark-master:7077"},
+        verbose=True
+    )
+    spark_job
+
+dag = spark_submit_remote()
