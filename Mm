@@ -1,0 +1,43 @@
+# Start with the official Airflow image
+FROM apache/airflow:3.0.6
+
+# Switch to the root user to install software
+USER root
+
+# --- Install Java from your local binary ---
+# Copy your pre-downloaded JDK binary into the image
+# <--- CHANGE THIS FILENAME to match yours
+COPY jdk-11.0.22_linux-x64_bin.tar.gz /tmp/jdk.tar.gz
+
+# Unpack the JDK into the /opt directory
+RUN tar -xzf /tmp/jdk.tar.gz -C /opt/
+
+# Set JAVA_HOME and add it to the PATH
+# <--- CHANGE THIS FOLDER NAME to match the one inside your .tar.gz
+ENV JAVA_HOME=/opt/jdk-11.0.22
+ENV PATH=$JAVA_HOME/bin:$PATH
+# ---
+
+# --- Build and Install PySpark from Source ---
+# Copy your local Spark source file into the image
+COPY spark-3.5.1.tgz /tmp/spark.tgz
+
+# Unpack the source file
+RUN tar -xzf /tmp/spark.tgz -C /opt/
+
+# Set environment variables for Spark
+# <--- CHANGE THIS FOLDER NAME to match yours
+ENV SPARK_HOME=/opt/spark-3.5.1
+ENV PATH=$PATH:$SPARK_HOME/bin
+
+# Go into the python subdirectory of the unpacked source
+WORKDIR $SPARK_HOME/python
+
+# Build and install pyspark and py4j from the source
+RUN pip install .
+
+# Install the Airflow Spark Provider
+RUN pip install apache-airflow-providers-apache-spark
+
+# Switch back to the non-privileged airflow user for security
+USER airflow
