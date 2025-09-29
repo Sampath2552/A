@@ -1,0 +1,49 @@
+# Start with the official Airflow image
+FROM apache/airflow:3.0.6
+
+# Switch to the root user for system-level tasks
+USER root
+
+# --- Setup Java from Binary ---
+# Copy and unpack your local JDK binary
+COPY jdk-11.0.27_linux-x64_bin.tar.gz /tmp/jdk.tar.gz
+RUN tar -xzf /tmp/jdk.tar.gz -C /opt/
+ENV JAVA_HOME=/opt/jdk-11.0.27
+ENV PATH=$JAVA_HOME/bin:$PATH
+
+# --- Setup Spark from Source ---
+# Copy and unpack your local Spark source
+COPY spark-3.5.1.tgz /tmp/spark.tgz
+RUN tar -xzf /tmp/spark.tgz -C /opt/
+ENV SPARK_HOME=/opt/spark-3.5.1
+ENV PATH=$PATH:$SPARK_HOME/bin
+
+# --- Copy Local Wheels ---
+# Copy the wheels you do have into the image
+COPY py4j-0.10.9.7-py2.py3-none-any.whl /tmp/py4j.whl
+COPY apache_airflow_providers_apache_spark-5.3.1-py3-none-any.whl /tmp/provider.whl
+
+# --- Change Ownership ---
+# Give the airflow user ownership of the files needed for installation
+RUN chown -R airflow:airflow /opt/spark-3.5.1 && \
+    chown airflow:airflow /tmp/py4j.whl && \
+    chown airflow:airflow /tmp/provider.whl
+
+# --- Switch to airflow user for safe Python installation ---
+USER airflow
+
+# --- Installation Steps (in specific order) ---
+# 1. First, install Py4J from its wheel, as PySpark's build process needs it.
+RUN pip install /tmp/py4j.whl
+
+# 2. Next, build and install PySpark from source. It will find Py4J is already installed.
+WORKDIR $SPARK_HOME/python
+RUN pip install .
+
+# 3. Finally, install the Airflow Spark Provider. It will find PySpark is now installed.
+RUN pip install /tmp/provider.whl
+
+# --- Final Cleanup ---
+USER root
+RUN rm /tmp/py4j.whl /tmp/provider.whl
+USER airflow
