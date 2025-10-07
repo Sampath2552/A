@@ -1,0 +1,89 @@
+const validateRow = (row, index) => {
+  const rowNumber = index + 2;
+  const rowErrors = [];
+
+  const sanitize = (val) => (val ? val.toString().trim() : "");
+
+  const {
+    UCN,
+    "Firm Registration No.": frnRaw,
+    "Firm Name": firmNameRaw,
+    "PAN NO.": panRaw,
+    "GSTIN NO.": gstinRaw,
+    "Address Line": addressRaw,
+    City: cityRaw,
+    "State Name": stateRaw,
+    "District Name": districtRaw,
+    "Pin Code": pinRaw,
+    "Primary Mobile No.": mobileRaw,
+    "Point of Contact": contactNameRaw,
+    "Point of Contact's Designation": contactDesigRaw,
+    "Point of Contact Email": contactEmailRaw,
+    "Type of Establishment": establishmentRaw,
+  } = row;
+
+  // Clean all fields once
+  const ucn = sanitize(UCN);
+  const frn = sanitize(frnRaw);
+  const firmName = sanitize(firmNameRaw);
+  const pan = sanitize(panRaw);
+  const gstin = sanitize(gstinRaw);
+  const address = sanitize(addressRaw);
+  const city = sanitize(cityRaw);
+  const state = sanitize(stateRaw);
+  const district = sanitize(districtRaw);
+  const pin = sanitize(pinRaw);
+  const mobile = sanitize(mobileRaw);
+  const contactName = sanitize(contactNameRaw);
+  const contactDesig = sanitize(contactDesigRaw);
+  const contactEmail = sanitize(contactEmailRaw);
+  const establishment = sanitize(establishmentRaw).toLowerCase();
+
+  // Utility validations
+  const isValidFrn = (val) => /^[a-z0-9/]+$/i.test(val);
+  
+  // Validations (with skips as per TODO)
+  if (ucn && !isOnlyNumbers(ucn))
+    rowErrors.push("UCN must contain numbers only");
+
+  if (frn && !isValidFrn(frn))
+    rowErrors.push("Firm Registration No. must be alphanumeric (allowing '/')");
+
+  if (!firmName) rowErrors.push("Firm Name is required");
+
+  if (pan && !isPAN(pan))
+    rowErrors.push("Invalid PAN (alphanumeric only)");
+
+  if (gstin && !isGSTIN(gstin))
+    rowErrors.push("Invalid GSTIN (alphanumeric only)");
+
+  if (!isAddress(address))
+    rowErrors.push("Address must contain only alphabets");
+
+  if (!isAlpha(city)) rowErrors.push("City must contain only alphabets");
+  if (!isAlpha(state)) rowErrors.push("State must contain only alphabets");
+  if (!isAlpha(district))
+    rowErrors.push("District must contain only alphabets");
+
+  if (!isPinCode(pin)) rowErrors.push("Pin Code must be 6 digits");
+
+  if (!isMobile(mobile)) rowErrors.push("Mobile number must be 10 digits");
+
+  if (!isAlpha(contactName))
+    rowErrors.push("Contact Name must contain only text");
+
+  if (!isAlpha(contactDesig))
+    rowErrors.push("Designation must contain only text");
+
+  if (!contactEmail) rowErrors.push("Contact Email is required");
+
+  const validEstablishments = ["partnership firm", "proprietorship firm", "other"];
+  if (!validEstablishments.includes(establishment))
+    rowErrors.push("Invalid Type of Establishment");
+
+  return {
+    rowNumber,
+    isValid: rowErrors.length === 0,
+    errors: rowErrors,
+  };
+};
