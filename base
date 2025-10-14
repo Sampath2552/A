@@ -1,0 +1,23 @@
+# Start with the official Airflow 3.0.6 image for Python 3.10
+FROM apache/airflow:3.0.6-python3.10
+
+# Switch to root to install Java and system dependencies
+USER root
+
+# Install Java (required for Spark)
+RUN apt-get update && \
+    apt-get install -y default-jdk && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install additional system dependencies (Kerberos, GCC)
+RUN apt-get update && \
+    apt-get install -y gcc g++ libkrb5-dev krb5-user && \
+    rm -rf /var/lib/apt/lists/*
+
+# Switch back to airflow user
+USER airflow
+
+# Install latest versions of Airflow providers
+RUN pip install --upgrade apache-airflow-providers-apache-spark \
+                apache-airflow-providers-apache-hdfs \
+                apache-airflow-providers-sftp
