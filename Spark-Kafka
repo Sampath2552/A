@@ -1,0 +1,30 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import to_json, struct, col
+
+spark = SparkSession.builder \
+    .appName("ContinuousSparkToKafka") \
+    .getOrCreate()
+
+# EXAMPLE INPUT STREAM
+# Replace this with your real source (files, directories, DB, etc.)
+input_stream = spark.readStream \
+    .format("json") \
+    .schema("timestamp STRING, event STRING, value DOUBLE") \
+    .load("/path/to/input/live/data")
+
+# Convert to JSON for Kafka
+kafka_df = input_stream.selectExpr(
+    "CAST(null AS STRING) AS key",
+    "to_json(struct(*)) AS value"
+)
+
+# Continuous write to Kafka
+query = kafka_df.writeStream \
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", "10.177.103.196:9092") \
+    .option("topic", "druid_topic") \
+    .option("checkpointLocation", "/tmp/spark_checkpoint_kafka") \
+    .outputMode("append") \
+    .start()
+
+query.awaitTermination()
