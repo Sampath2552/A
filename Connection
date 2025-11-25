@@ -1,0 +1,10 @@
+python3 - << 'EOF'
+import socket
+s = socket.socket()
+try:
+    s.settimeout(3)
+    s.connect(("host.docker.internal", 9092))
+    print("CONNECTED to Kafka")
+except Exception as e:
+    print("FAILED:", e)
+EOF
