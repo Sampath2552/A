@@ -1,0 +1,6 @@
+spark-submit \
+  --jars ojdbc8.jar,\
+spark-sql-kafka-0-10_2.12-3.5.7.jar,\
+spark-token-provider-kafka-0-10_2.12-3.5.7.jar,\
+kafka-clients-3.5.1.jar \
+  kafkaTest.py
