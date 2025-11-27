@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  spark:
+    image: bitnami/spark:latest
+    container_name: spark-bash
+    command: ["/bin/bash"]
+    tty: true
+    stdin_open: true
+    environment:
+      - SPARK_MODE=standalone
+    ports:
+      - "8080:8080"         # Master UI
+      - "8081:8081"         # Worker UI
+      - "7077:7077"         # RPC
+      - "4040-4045:4040-4045" # Spark job UIs
+      - "18080:18080"       # History Server
+    volumes:
+      - ./data:/app/data    # <--- Local folder mounted inside container
+    networks:
+      - spark-net
+
+networks:
+  spark-net:
+    driver: bridge
