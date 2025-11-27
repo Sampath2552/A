@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  spark:
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: spark-env
+
+    env_file:
+      - .env                     # <--- load all variables from .env
+
+    command: ["/bin/bash"]       # Start directly with bash
+    tty: true
+    stdin_open: true
+
+    volumes:
+      - ./:/app                  # Access local files inside /app
+
+    ports:
+      - "8080:8080"              # Spark Master UI
+      - "7077:7077"              # Spark RPC
+      - "4040-4045:4040-4045"    # Spark Job UI
+
+    networks:
+      - spark-net
+
+networks:
+  spark-net:
+    driver: bridge
