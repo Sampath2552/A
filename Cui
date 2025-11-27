@@ -1,0 +1,34 @@
+services:
+  spark:
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: spark-env
+
+    env_file:
+      - .env
+
+    # Start Spark Master, then drop into interactive bash 
+    command: >
+      bash -c "
+        /opt/spark/sbin/start-master.sh &&
+        /bin/bash
+      "
+
+    tty: true
+    stdin_open: true
+
+    volumes:
+      - ./:/app
+
+    ports:
+      - "8080:8080"            # Spark Master UI
+      - "7077:7077"            # Spark Master RPC
+      - "4040-4045:4040-4045"  # Spark Job UI
+
+    networks:
+      - spark-net
+
+networks:
+  spark-net:
+    driver: bridge
