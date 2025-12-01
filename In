@@ -1,0 +1,171 @@
+# optimized_invto_gl_parser.py
+# Run with: spark-submit --master yarn --deploy-mode cluster optimized_invto_gl_parser.py
+# (or run inside your Spark environment)
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import expr
+from datetime import date
+import json
+import sys
+import os
+
+# -------- CONFIG ----------
+HDFS_URL = "hdfs://10.177.xxx.xxx:8022"   # adjust to your cluster
+today = date.today().strftime("%Y-%m-%d")
+HDFS_ROOT_PATH = f"{HDFS_URL}/CBS-FILES/{today}"
+INPUT_GLOB = f"{HDFS_ROOT_PATH}/BANCS24/INVTOGL*"   # supports files + gz variants
+OUTPUT_PATH = f"{HDFS_ROOT_PATH}/processed/INVTOGL.parquet"
+# Spark tuning values - change based on your cluster capacity
+SHUFFLE_PARTITIONS = 800   # good starting point for ~800M rows
+REPARTITION_OUTPUT = 300   # number of parquet files to produce
+EXECUTOR_CORES = 4
+EXECUTOR_MEMORY = "8g"
+DRIVER_MEMORY = "8g"
+# ---------------------------
+
+def generate_select(schema):
+    """
+    schema: dict -> { "COL_NAME": [(start1,length1), (start2,length2), ...], ...}
+    returns: list of pyspark.sql.Column expressions
+    """
+    result = []
+    for col_name, parts in schema.items():
+        if not isinstance(parts, (list, tuple)) or len(parts) == 0:
+            continue
+        if len(parts) == 1:
+            s, l = parts[0]
+            result.append(expr(f"trim(substring(value, {s}, {l}))").alias(col_name))
+        else:
+            concat_parts = ",".join([f"substring(value, {s}, {l})" for s, l in parts])
+            # trim final result
+            result.append(expr(f"trim(concat({concat_parts}))").alias(col_name))
+    return result
+
+def load_schema_from_json(path):
+    """
+    Optional: load schema from a local or HDFS JSON file with same structure as `schema` below.
+    If path starts with hdfs:// it will be attempted via spark.read.text; else local open.
+    """
+    if not path:
+        return None
+    if path.startswith("hdfs://") or path.startswith("/"):
+        # assume local path on driver or HDFS; try local open first
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except Exception:
+            # fallback: return None (user can provide schema inline)
+            return None
+    else:
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except Exception:
+            return None
+
+def create_spark_session(app_name="INVTOGL_PARSER"):
+    builder = SparkSession.builder.appName(app_name) \
+        .config("spark.hadoop.fs.defaultFS", HDFS_URL) \
+        .config("spark.sql.adaptive.enabled", "true") \
+        .config("spark.sql.shuffle.partitions", str(SHUFFLE_PARTITIONS)) \
+        .config("spark.executor.cores", str(EXECUTOR_CORES)) \
+        .config("spark.executor.memory", EXECUTOR_MEMORY) \
+        .config("spark.driver.memory", DRIVER_MEMORY) \
+        .config("spark.sql.files.maxPartitionBytes", "256mb") \
+        .config("spark.sql.adaptive.shuffle.targetPostShuffleInputSize", "256mb")
+    spark = builder.getOrCreate()
+    # helpful: reduce INFO noise if needed
+    spark.sparkContext.setLogLevel("WARN")
+    return spark
+
+# ---- SCHEMA extracted and prepared from screenshots ----
+# Add or modify fields here. Each tuple is (start_index, length) using substring(value, start, length).
+# NOTE: Spark substring starts at position 1 (1-based index), align with your positions accordingly.
+schema = {
+    # single-segment fields (examples extracted from screenshot)
+    "ACC1_NO": [(4, 16)],
+    "BR_NO": [(20, 5)],
+    "CURR_STATUS": [(25, 2)],
+    "CURRENCY": [(27, 2)],
+    "SGMT_CODE": [(29, 3)],
+    "ACCT_TYPE": [(32, 4)],
+    "INI_CAT": [(36, 4)],
+    "OD_STATUS": [(40, 1)],
+    "GL_CLASSIFICATION_CODE": [(196, 4)],
+    "CGL_COMPONENT_1_DR": [(317, 17)],
+    "CGL_COMPONENT_2_DR": [(334, 10)],
+    "CGL_COMPONENT_1_CR": [(344, 17)],
+    "CGL_COMPONENT_2_CR": [(361, 10)],
+    "OD_INDICATOR": [(371, 1)],
+    "OD_ALLOWED_THIS_PRODUCT": [(372, 1)],
+
+    # multi-segment numeric/amount-like fields (from screenshot patterns)
+    "CURR_BAL": [(47, 1), (30, 14), (44, 3)],
+    "INT_AVAILABLE": [(260, 1), (243, 12), (255, 5)],
+    "INT_ADJUSTMENT": [(278, 1), (261, 12), (273, 5)],
+    "OD_DR_INT_AVAIL": [(296, 1), (279, 12), (291, 5)],
+    "DR_INT_ADJUSTMENT": [(314, 1), (297, 12), (309, 5)],
+    "OD_PENALTY_INT_ACCR": [(408, 1), (391, 12), (403, 5)],
+    "OD_PENALTY_INT_AD": [(426, 1), (409, 12), (421, 5)],
+    "OD_DR_INT_INCR": [(444, 1), (427, 12), (439, 5)],
+    "INT_INCR": [(462, 1), (445, 12), (457, 5)],
+
+    # (You can add many more fields here — keep same structure)
+}
+
+def read_and_parse(spark, schema_dict):
+    """Read text files (including gz) and parse fixed-width fields as per schema_dict."""
+    print("Reading files from:", INPUT_GLOB)
+    # Using spark.read.text will read all matching files (gz supported)
+    raw_df = spark.read.text(INPUT_GLOB)
+
+    # Remove possible empty lines early to avoid extra empty partitions
+    # (this is a simple filter; empty gz => no rows, but empty-line protection helps)
+    raw_df = raw_df.filter("value IS NOT NULL AND length(value) > 0")
+
+    # generate select expressions
+    select_exprs = generate_select(schema_dict)
+
+    # Safety: if no select expressions, stop with clear message
+    if not select_exprs:
+        raise ValueError("No fields defined in schema. Add fields to the `schema` dict or provide a JSON schema.")
+
+    parsed_df = raw_df.select(*select_exprs)
+
+    # Optional: you can add column-level trimming, casting, or validation here
+    # e.g., parsed_df = parsed_df.withColumn("ACC1_NO", trim(col("ACC1_NO")))
+
+    # Repartition for output (controlled number of parquet files)
+    final_df = parsed_df.repartition(REPARTITION_OUTPUT)
+
+    print("Writing to parquet:", OUTPUT_PATH)
+    final_df.write.mode("overwrite").parquet(OUTPUT_PATH)
+    print("Write complete.")
+
+def main():
+    # optional argument: path to JSON schema to override embedded one
+    schema_path = None
+    if len(sys.argv) > 1:
+        schema_path = sys.argv[1]
+
+    spark = create_spark_session()
+
+    # try to load schema from supplied path
+    loaded_schema = None
+    if schema_path:
+        loaded_schema = load_schema_from_json(schema_path)
+        if loaded_schema is None:
+            print("Warning: could not load schema from", schema_path, " — falling back to embedded schema.")
+        else:
+            print("Loaded schema from", schema_path)
+
+    final_schema = loaded_schema if loaded_schema else schema
+
+    # Sanity: show a few schema keys
+    print("Using schema columns:", list(final_schema.keys())[:10], "... total:", len(final_schema.keys()))
+
+    read_and_parse(spark, final_schema)
+    spark.stop()
+
+if __name__ == "__main__":
+    main()
