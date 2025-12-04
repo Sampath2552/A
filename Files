@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Usage:
+# ./script.sh with
+# ./script.sh without
+
+if [ -z "$1" ]; then
+    echo "Please pass argument: with | without"
+    exit 1
+fi
+
+if [ "$1" == "with" ]; then
+    PATTERN_FILE="files_with_extra.txt"
+elif [ "$1" == "without" ]; then
+    PATTERN_FILE="files_without_extra.txt"
+else
+    echo "Invalid input. Use: with | without"
+    exit 1
+fi
+
+BASE_PATH="/CBS-FILES/2025-12-02/GLIF"
+
+grand_count=0
+grand_size=0
+
+echo "🔍 Using pattern file: $PATTERN_FILE"
+echo "========================================="
+
+while read pattern; do
+    echo "📌 Pattern: $pattern"
+
+    count=$(hdfs dfs -ls "$BASE_PATH/$pattern" 2>/dev/null | wc -l)
+    size=$(hdfs dfs -ls "$BASE_PATH/$pattern" 2>/dev/null | awk '{sum += $5} END {print sum}')
+    size_mb=$(echo "$size / 1024 / 1024" | bc -l)
+
+    echo "   Count: $count"
+    echo "   Total Size (bytes): $size"
+    printf "   Total Size (MB): %.2f MB\n\n" "$size_mb"
+
+    grand_count=$((grand_count + count))
+    grand_size=$((grand_size + size))
+
+done < "$PATTERN_FILE"
+
+echo "========================================="
+echo " TOTAL COUNT OF ALL PATTERNS: $grand_count"
+printf " TOTAL SIZE (MB): %.2f MB\n" "$(echo "$grand_size / 1024 / 1024" | bc -l)"
+echo " TOTAL SIZE (bytes): $grand_size"
+echo "========================================="
