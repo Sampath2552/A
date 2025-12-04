@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# Date logic (same as before)
+days="$1"
+if [ -z "$days" ]; then
+    DATE=$(date +%Y-%m-%d)
+else
+    DATE=$(date -d "$days days ago" +%Y-%m-%d)
+fi
+
+BASE_PATH="/CBS-FILES/$DATE/GLIF"
+
+echo "Checking folder: $BASE_PATH"
+
+# Check if folder exists
+if ! hdfs dfs -test -d "$BASE_PATH"; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ❌ HDFS folder not found: $BASE_PATH"
+    exit 1
+fi
+
+echo "✔ Folder exists. Starting mismatch scan..."
+echo "========================================="
+
+# Combine both pattern lists
+cat files_with_extra.txt files_without_extra.txt > all_patterns.tmp
+
+# Get complete list of files (names only, not size)
+hdfs dfs -ls "$BASE_PATH" 2>/dev/null | awk '{print $8}' | awk -F '/' '{print $NF}' > all_files.tmp
+
+# For every file, check if it matches any pattern
+echo "Files NOT matching ANY pattern:" > non_matching_files.txt
+
+while read file; do
+    matched=false
+    while read pattern; do
+        if [[ "$file" =~ $pattern ]]; then
+            matched=true
+            break
+        fi
+    done < all_patterns.tmp
+
+    if [ "$matched" = false ]; then
+        echo "$file" >> non_matching_files.txt
+    fi
+done < all_files.tmp
+
+echo "========================================="
+echo "📌 Non-matching file list saved to: non_matching_files.txt"
+echo "========================================="
+
+# Cleanup
+rm all_patterns.tmp all_files.tmp
