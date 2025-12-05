@@ -1,0 +1,252 @@
+# ==============================
+#        IMPORTS
+# ==============================
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import (
+    expr,
+    when,
+    trim,
+    substring,
+    col,
+    lit,
+    sum as Fsum,
+)
+from pyspark.sql.types import DecimalType
+import logging
+from logging.handlers import RotatingFileHandler
+
+# ==============================
+#        LOGGING SETUP
+# ==============================
+log_formatter = logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+    "%Y-%m-%d %H:%M:%S"
+)
+log_file = "cbs_hdfs_etl.log"
+
+handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=5)
+handler.setFormatter(log_formatter)
+
+logger = logging.getLogger("CBS_ETL")
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
+logger.propagate = False
+
+# ==============================
+#       HARDCODED DATE
+# ==============================
+# You said HDFS dynamic path isn’t ready yet
+today = "2025-12-02"   # <-- change when needed
+
+# ==============================
+#      SPARK SESSION
+# ==============================
+def create_spark_session(app_name: str, jars_path: str, hdfs_uri: str) -> SparkSession:
+    spark = (
+        SparkSession.builder
+        .appName(app_name)
+        .config("spark.jars", jars_path)
+        .config("spark.hadoop.fs.defaultFS", hdfs_uri)
+        # Tuning for big data
+        .config("spark.sql.shuffle.partitions", "200")
+        .config("spark.executor.memory", "6g")   # adjust as per your cluster
+        .config("spark.driver.memory", "4g")     # adjust as per your cluster
+        .config("spark.memory.fraction", "0.8")
+        .config("spark.sql.files.maxPartitionBytes", "512m")
+        .getOrCreate()
+    )
+    logger.info("Spark session created successfully.")
+    return spark
+
+# ==============================
+#   GENERIC PARSE FUNCTION
+# ==============================
+def parse_file(
+    spark: SparkSession,
+    path: str,
+    id_pos: tuple,
+    amt_pos: tuple,
+    type_pos: tuple,
+    divisor: int,
+    label: str,
+):
+    """
+    id_pos:  (start, length)
+    amt_pos: (start, length)
+    type_pos:(start, length=1 usually)
+    divisor: 1000 / 10000 etc (as per your requirement)
+    """
+    try:
+        logger.info(f"[{label}] Reading & parsing from: {path}")
+        df_raw = spark.read.text(path)
+
+        id_col = expr(f"substring(value, {id_pos[0]}, {id_pos[1]})")
+        amt_col = expr(f"substring(value, {amt_pos[0]}, {amt_pos[1]})")
+        type_col = expr(f"substring(value, {type_pos[0]}, {type_pos[1]})")
+
+        df_parsed = df_raw.select(
+            id_col.alias("Id"),
+            when(
+                type_col == "+",
+                trim(amt_col).cast(DecimalType(22, 4)) / divisor,
+            )
+            .when(
+                type_col == "-",
+                -1 * trim(amt_col).cast(DecimalType(22, 4)) / divisor,
+            )
+            .otherwise(0)
+            .alias("Amount"),
+        )
+
+        logger.info(f"[{label}] Completed parsing for {path}")
+        return df_parsed
+
+    except Exception as e:
+        logger.error(f"[{label}] Failed processing {path}: {e}", exc_info=True)
+        raise
+
+# ==============================
+#   PER-TYPE AGGREGATION
+# ==============================
+def aggregate_by_id(df, label: str, partitions: int = 200):
+    """
+    For 2B records, repartition on Id before groupBy to balance shuffle.
+    """
+    logger.info(f"[{label}] Repartitioning and aggregating by Id")
+    df_repart = df.repartition(partitions, "Id")
+    df_agg = df_repart.groupBy("Id").agg(Fsum("Amount").alias("Amount"))
+    logger.info(f"[{label}] Aggregation complete")
+    return df_agg
+
+# ==============================
+#                MAIN
+# ==============================
+if __name__ == "__main__":
+    hdfs_uri = "hdfs://10.177.103.199:8022"
+    base_path = f"{hdfs_uri}/CBS-FILES/{today}/BANCS24"
+
+    spark = create_spark_session(
+        "CBS_HDFS_Text_to_Oracle_2B_Optimized",
+        "./ojdbc8.jar",  # path to Oracle JDBC jar in your container
+        hdfs_uri,
+    )
+
+    logger.info(f"Using base HDFS path: {base_path}")
+
+    # ==============================
+    #   1) READ + PARSE EACH TYPE
+    # ==============================
+
+    # --- INV ---
+    df_inv = parse_file(
+        spark,
+        f"{base_path}/INV*",
+        id_pos=(200, 18),
+        amt_pos=(30, 17),
+        type_pos=(47, 1),
+        divisor=1000,
+        label="INV",
+    )
+
+    # --- BOR ---
+    df_bor = parse_file(
+        spark,
+        f"{base_path}/BOR*",
+        id_pos=(185, 18),
+        amt_pos=(27, 17),
+        type_pos=(44, 1),
+        divisor=1000,
+        label="BOR",
+    )
+
+    # --- GLCC ---
+    # ⚠️ IMPORTANT:
+    # Replace the positions below with exactly what you used in your working GLCC code.
+    # I’ll keep placeholders here; plug in your actual substring indexes.
+    df_glc = parse_file(
+        spark,
+        f"{base_path}/GLCC*",
+        id_pos=(1, 18),          # <-- your GLCC Id position
+        amt_pos=(24, 10),        # <-- your GLCC amount position/length
+        type_pos=(34, 1),        # <-- your GLCC + / - sign position
+        divisor=10000,           # as per your requirement
+        label="GLCC",
+    )
+
+    # ==============================
+    #   2) PER-TYPE AGGREGATION
+    # ==============================
+    # For 2B records, this step massively reduces shuffle size before union.
+
+    df_inv_agg = aggregate_by_id(df_inv, "INV", partitions=200)
+    df_bor_agg = aggregate_by_id(df_bor, "BOR", partitions=200)
+    df_glc_agg = aggregate_by_id(df_glc, "GLCC", partitions=200)
+
+    # ==============================
+    #   3) UNION + FINAL AGG
+    # ==============================
+    logger.info("Union of aggregated DataFrames started")
+
+    df_union = df_inv_agg.unionByName(df_bor_agg).unionByName(df_glc_agg)
+
+    # Final aggregation (in case same Id appears across file types)
+    df_final = (
+        df_union
+        .repartition(200, "Id")   # balance before final groupBy
+        .groupBy("Id")
+        .agg(Fsum("Amount").alias("Amount"))
+    )
+
+    logger.info("Final aggregation across INV + BOR + GLCC complete")
+
+    # ==============================
+    #   4) DERIVED COLUMNS
+    # ==============================
+    # Id → BRANCH_CODE(1–5), CURRENCY(6–8), CGL(9–18) as per your original logic
+
+    df_mapped = (
+        df_final
+        .withColumn("BRANCH_CODE", substring(col("Id"), 1, 5))
+        .withColumn("CURRENCY", substring(col("Id"), 6, 3))
+        .withColumn("CGL", substring(col("Id"), 9, 10))
+        .withColumn("BALANCE_DATE", lit(today))
+        .select("BRANCH_CODE", "CURRENCY", "CGL", "Amount", "BALANCE_DATE")
+    )
+
+    logger.info("Column mapping complete")
+
+    # Optional: repartition by CGL (or BRANCH_CODE) for DB write balance
+    df_to_write = df_mapped.repartition(50, "CGL")
+
+    # ==============================
+    #   5) ORACLE WRITE
+    # ==============================
+    oracle_url = "jdbc:oracle:thin:@10.177.103.192:1523/fincorepdb1"
+    oracle_user = "fincore"
+    oracle_password = "Password#1234"  # <-- ideally load from env/secret
+    oracle_driver = "oracle.jdbc.driver.OracleDriver"
+
+    try:
+        logger.info("Starting Oracle write...")
+
+        (
+            df_to_write.write.format("jdbc")
+            .option("url", oracle_url)
+            .option("dbtable", "CBS_BALANCE")
+            .option("user", oracle_user)
+            .option("password", oracle_password)
+            .option("driver", oracle_driver)
+            .option("batchsize", 100000)    # tuned for large loads
+            .option("numPartitions", 50)    # matches repartition above
+            .mode("append")
+            .save()
+        )
+
+        logger.info("Data successfully written to Oracle DB")
+
+    except Exception as e:
+        logger.error(f"Oracle write failure: {e}", exc_info=True)
+        raise
+
+    logger.info("ETL job completed successfully")
+    spark.stop()
