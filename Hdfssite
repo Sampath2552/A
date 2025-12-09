@@ -1,0 +1,85 @@
+<configuration>
+  <property>
+    <name>dfs.nameservices</name>
+    <value>mycluster</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.namenodes.mycluster</name>
+    <value>nn1,nn2,nn3</value>
+  </property>
+
+  <!-- NameNode RPC bindings -->
+  <property>
+    <name>dfs.namenode.rpc-address.mycluster.nn1</name>
+    <value>192.168.1.11:8020</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.mycluster.nn2</name>
+    <value>192.168.1.12:8020</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.rpc-address.mycluster.nn3</name>
+    <value>192.168.1.13:8020</value>
+  </property>
+
+  <!-- NameNode Web UI -->
+  <property>
+    <name>dfs.namenode.http-address.mycluster.nn1</name>
+    <value>192.168.1.11:9870</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.http-address.mycluster.nn2</name>
+    <value>192.168.1.12:9870</value>
+  </property>
+
+  <property>
+    <name>dfs.namenode.http-address.mycluster.nn3</name>
+    <value>192.168.1.13:9870</value>
+  </property>
+
+  <!-- JournalNodes -->
+  <property>
+    <name>dfs.namenode.shared.edits.dir</name>
+    <value>qjournal://192.168.1.11:8485;192.168.1.12:8485;192.168.1.13:8485/mycluster</value>
+  </property>
+
+  <property>
+    <name>dfs.journalnode.edits.dir</name>
+    <value>C:/hadoop/data/jn</value>
+  </property>
+
+  <!-- Directories -->
+  <property>
+    <name>dfs.namenode.name.dir</name>
+    <value>file:/C:/hadoop/data/nn</value>
+  </property>
+
+  <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>file:/C:/hadoop/data/dn</value>
+  </property>
+
+  <property>
+    <name>dfs.replication</name>
+    <value>3</value>
+  </property>
+
+  <property>
+    <name>dfs.ha.automatic-failover.enabled</name>
+    <value>true</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.proxy.provider.mycluster</name>
+    <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+  </property>
+
+  <property>
+    <name>dfs.client.failover.observer.read</name>
+    <value>true</value>
+  </property>
+</configuration>
