@@ -1,0 +1,343 @@
+
+
+def transfer(df_without_circle,BATCH_ID_LITERAL,JOURNAL_ID_LITERAL,source_cgl="2110505001",transfer_cgl="1106505001",currency="INR"):    
+    generated_df = df_without_circle.select(
+   F.explode(F.array(
+       F.struct(
+           F.col("CIRCLE_CODE").alias("CIRCLE_CODE"),
+           F.lit(BATCH_ID_LITERAL).alias("BATCH_ID"), 
+        #    F.lit("P and L Transfer").alias("NARRATION"),
+           F.lit(1).alias("TRANSACTION_COUNT"),
+           F.col("BRANCH_CODE"),
+           F.lit(currency).alias("CURRENCY"),
+           F.lit(source_cgl).alias("CGL"),
+           (-F.least(F.col("BALANCE"), F.lit(0))).alias("CREDIT_AMOUNT"),  # if BALANCE<=0
+           (-F.greatest(F.col("BALANCE"), F.lit(0))).alias("DEBIT_AMOUNT")  # if BALANCE>0
+       ),
+       F.struct(
+           F.col("CIRCLE_CODE").alias("CIRCLE_CODE"),
+           F.lit(BATCH_ID_LITERAL).alias("BATCH_ID"),  
+           
+        #    F.lit("P and L Transfer").alias("NARRATION"),
+           F.lit(1).alias("TRANSACTION_COUNT"),
+           F.col("BRANCH_CODE"),
+           F.lit(currency).alias("CURRENCY"),
+           F.lit(transfer_cgl).alias("CGL"),
+           F.greatest(F.col("BALANCE"), F.lit(0)).alias("CREDIT_AMOUNT"),  # if BALANCE>0
+           F.least(F.col("BALANCE"), F.lit(0)).alias("DEBIT_AMOUNT")    # if BALANCE<=0
+       ),
+       F.struct(
+           F.col("CIRCLE_CODE").alias("CIRCLE_CODE"),
+           F.lit(BATCH_ID_LITERAL).alias("BATCH_ID"),  
+           
+        #    F.lit("P and L Transfer").alias("NARRATION"),
+           F.lit(1).alias("TRANSACTION_COUNT"),
+           F.col("CIRCLE_CODE").alias("BRANCH_CODE"),
+           F.lit(currency).alias("CURRENCY"),
+           F.lit(transfer_cgl).alias("CGL"),
+           (-F.least(F.col("BALANCE"), F.lit(0))).alias("CREDIT_AMOUNT"),
+           (-F.greatest(F.col("BALANCE"), F.lit(0))).alias("DEBIT_AMOUNT")
+       ),
+       F.struct(
+           F.col("CIRCLE_CODE").alias("CIRCLE_CODE"),
+           F.lit(BATCH_ID_LITERAL).alias("BATCH_ID"),  
+        #    F.lit("P and L Transfer").alias("NARRATION"),
+           F.lit(1).alias("TRANSACTION_COUNT"),
+           F.col("CIRCLE_CODE").alias("BRANCH_CODE"),
+           F.lit(currency).alias("CURRENCY"),
+           F.lit(source_cgl).alias("CGL"),
+           F.greatest(F.col("BALANCE"), F.lit(0)).alias("CREDIT_AMOUNT"),
+           F.least(F.col("BALANCE"), F.lit(0)).alias("DEBIT_AMOUNT")
+       ))).alias("r")).select("r.*")
+    return generated_df
+
+def main(args):
+    try:
+        HDFS_BASE = get_hdfs_base()
+        spark = create_spark_session("PROFIT_TRANSFER", HDFS_BASE)
+        # spark.conf.set("spark.sql.codegen.aggregate.map.twolevel.enabled", "false")   
+
+        today = get_etl_date(spark)
+        yesterday = today - timedelta(days=1)
+
+        posting_date_str = today.strftime("%Y-%m-%d")
+        PROCESS_ID= Process.TRANSFER_TO_LHO_PIPELINE
+        process_run_id = sys.argv[1] if len(sys.argv) > 1 else get_process_run_id(spark,PROCESS_ID,posting_date_str)
+        RUN_ID = get_run_id(spark,posting_date_str,PROCESS_ID)   
+        today_str = posting_date_str
+        yesterday=yesterday.strftime("%Y-%m-%d")
+        today= today.strftime("%Y-%m-%d")
+
+        logger = setup_logger("TRANSHFER_PROFIT", RUN_ID , posting_date_str)
+
+        logger.info(f"=== Using current date for POST_DATE: {posting_date_str} ===")
+        logger.info(f"RUN_ID as : {RUN_ID}")
+        log_etl(spark, process_run_id, "transfer_profit_started",1,"Transfer Profit Pipline Started")
+        logger.info("Fetched oracle properties SUCCESFULLY :)")
+
+        # ||||||||| PATHS |||||||||||||||
+        hdfs_paths = paths_for_read("glif",today,today_str)
+
+        HDFS_BASE = hdfs_paths["HDFS_BASE"]
+        HDFS_PATH = hdfs_paths["HDFS_PATH"]
+        GL_DATALAKE_PATH = hdfs_paths["GL_DATALAKE_PATH"]
+        manifest_filename = hdfs_paths["manifest_filename"]
+        spark_stream_path = hdfs_paths["spark_stream_path"] + manifest_filename
+        # ||||||||| PATHS |||||||||||||||
+
+        # \\\\\\\\\\\JDBC PROPERTIES \\\\\\\\\\\
+        oracle_properties=get_oracle_properties()
+        logger.info(oracle_properties)
+
+        JDBC_URL = oracle_properties["url"]
+        ORACLE_USER = oracle_properties["user"]
+        ORACLE_PASSWORD = oracle_properties["password"]
+        ORACLE_DRIVER = oracle_properties["driver"]
+        DriverManager = spark._jvm.java.sql.DriverManager
+        # \\\\\\\\\\\JDBC PROPERTIES \\\\\\\\\\\
+
+        # ||||||||| ORACLE TABLES |||||||||||||||
+        oracle_tables = tables_to_read("glif")
+        TRANSACTIONS = oracle_tables["TRANSACTIONS"]
+        BALANCE = oracle_tables["BALANCE"]
+        INVALID = oracle_tables["INVALID"]
+        CGLS = oracle_tables["CGLS"]
+        CURRENCY = oracle_tables["CURRENCY"]
+        BRANCH = oracle_tables["BRANCH"]
+        CIRCLE = oracle_tables["CIRCLE"]
+        # ||||||||| ORACLE TABLES |||||||||||||||
+        # ||||||||| BATCH ID |||||||||||||||
+        BATCH_ID_LITERAL = None
+        try:
+            query = f"""(SELECT get_next_batch_id AS BATCH_ID_VAL FROM DUAL) t"""
+            df_batch_id = read_oracle(spark,query)
+
+            batch_id_value = df_batch_id.collect()[0]["BATCH_ID_VAL"]
+            BATCH_ID_LITERAL = int(batch_id_value)
+        except Exception as e:
+            spark.stop()
+            sys.exit(1)
+
+        # ||||||||| JOURNAL ID |||||||||||||||
+        JOURNAL_ID_LITERAL = None
+        try:
+            query = f"""(SELECT get_next_journal_id AS JOURNAL_ID_VAL FROM DUAL) t"""
+            df_journal_id = read_oracle(spark,query)
+
+            journal_id_value = df_journal_id.collect()[0]["JOURNAL_ID_VAL"]
+            JOURNAL_ID_LITERAL = int(journal_id_value)
+        except Exception as e:
+            logger.error(f"error {e} when fetching journal id")
+            spark.stop()
+            sys.exit(1)
+
+        source=""
+        try:        
+                log_etl(spark, process_run_id, "pl_reading_strated_deltalake",3," Error in reading Profitloss from delta lake")
+                log_etl(spark, process_run_id, "pl_reading_strated_db",1,"Profitloss reading started from db")
+                prev_subq = f"""( SELECT BRANCH_CODE || CURRENCY || CGL AS GLCC, 
+                            INR_BALANCE AS BALANCE, 
+                            BALANCE_DATE
+                            FROM {BALANCE}
+                            WHERE BALANCE_DATE = (SELECT MAX(BALANCE_DATE) FROM {BALANCE})
+                            AND (CGL LIKE '7%' OR CGL LIKE '8%')) tmp_prev"""   
+                df_gl = read_oracle(spark,prev_subq)
+                logger.info("Data loaded from oracle")
+                source="db"
+
+        except Exception:
+            try:    
+                log_etl(spark, process_run_id, "pl_reading_strated_deltalake",1,"Profitloss reading started from delta lake")
+                df_gl = spark.read.format("delta").load(GL_DATALAKE_PATH).filter(col("BALANCE_DATE"))
+                max_date = df_gl.select(max("BALANCE_DATE")).collect()[0][0]
+
+                # 3. Apply the filters and transformations
+                df_result = df_gl.filter(
+                    (col("BALANCE_DATE") == max_date) & 
+                    (substring(col("GLCC"), 8, 1).isin("7", "8"))
+                ).select(
+                    col("GLCC"),
+                    col("INR_BALANCE").alias("BALANCE"),
+                    col("BALANCE_DATE")
+                )
+
+                df_gl = df_gl.select(col("closing_balance").cast("decimal(25,4)").alias("BALANCE"),col("GLCC"))
+                logger.info("Data loaded from datalake")
+                source="lake"
+
+            except Exception:
+                log_etl(spark, process_run_id, "pl_reading_strated_db",3,"Error in reading Profitloss from db")
+                df_gl=spark.createDataFrame([],schema="""GLCC STRING, BALANCE DECIMAL(25,4)""")
+                logger.info("GLIF Data not found")
+                spark.stop()
+                sys.exit(1)
+
+
+
+        df_gl_balance_final = (
+            df_gl
+            .withColumn("BRANCH_CODE", F.substring(F.col("GLCC"), 1, 5))
+            .withColumn("CURRENCY", F.substring(F.col("GLCC"), 6, 3))
+            .withColumn("CGL", F.substring(F.col("GLCC"), 9, 10))
+        )
+
+        try:
+            all_branches_query = f"""(SELECT CODE as BRANCH_CODE,BRANCH_CODE as CIRCLE_CODE FROM {BRANCH} A LEFT OUTER JOIN {CIRCLE} B ON A.CIRCLE_CODE = B.CIRCLE_CODE) tmp_prev""" 
+            all_branch_data = read_oracle(spark,all_branches_query)
+        except Exception as e:
+            print(f"Error {e} while reading the data.")
+            spark.stop()
+            sys.exit(1)
+
+        df_with_all_branches = df_gl_balance_final.join(
+            F.broadcast(all_branch_data),
+            on="BRANCH_CODE",
+            how="left"
+        )
+
+        df_with_all_PL = df_with_all_branches.groupBy("BRANCH_CODE","CIRCLE_CODE").agg(
+            F.sum(F.col("BALANCE")).alias("BALANCE"),    
+            ).select("BRANCH_CODE","CIRCLE_CODE","BALANCE").drop("CGL","CURRENCY")
+        
+        df_with_all_PL = df_with_all_PL.select("BRANCH_CODE",col("CIRCLE_CODE").alias("CIRCLE_BRANCH_CODE"),col("BALANCE").alias("PROFIT_LOSS")).withColumn(
+                "TRANSFER_DATE",F.to_date(F.lit(posting_date_str), "yyyy-MM-dd"))
+        
+
+        try:
+            log_etl(spark, process_run_id, "circlecode_reading_started",1,"Circle code reading started")       
+            circle_master_query = f"""(select circle_code, branch_code AS BRANCH_CODE from {CIRCLE}) tmp_prev""" 
+
+            circle_data = read_oracle(spark,circle_master_query)
+            log_etl(spark, process_run_id, "circlecode_reading_started",2,"Circle code reading completed") 
+        except Exception as e:
+            log_etl(spark, process_run_id, "circlecode_reading_started",3,"Error in reading Circle code")
+
+            print(f"Error {e} while reading the data.")
+            spark.stop()
+            sys.exit(1)
+
+
+        df_with_circle = df_gl_balance_final.join(
+            F.broadcast(circle_data),
+            on="BRANCH_CODE",
+            how="left"
+        ).filter(col("CIRCLE_CODE").isNotNull())
+
+        df_with_circle = df_with_circle.groupBy("BRANCH_CODE","CIRCLE_CODE").agg(
+            F.sum(F.col("BALANCE")).alias("BALANCE"),    
+            ).select("BRANCH_CODE","CIRCLE_CODE","BALANCE").drop("CGL","CURRENCY")
+
+        df_with_circle = df_with_circle \
+            .withColumn("CGL", F.lit("2110505001")) \
+            .withColumn("CURRENCY", F.lit("INR")) \
+            .withColumn(
+                "BALANCE_DATE",F.to_date(F.lit(posting_date_str), "yyyy-MM-dd")
+            )
+
+
+        df_with_circle = df_with_circle.select("CGL","BRANCH_CODE","BALANCE_DATE","BALANCE").withColumn("CURRENCY",F.lit("INR"))
+    
+        try:
+            circle_master_query = f"""(SELECT CODE as BRANCH_CODE,BRANCH_CODE as CIRCLE_CODE FROM {BRANCH} A LEFT OUTER JOIN {CIRCLE} B ON A.CIRCLE_CODE = B.CIRCLE_CODE
+                    WHERE NOT EXISTS (
+                                SELECT 1
+                                FROM {CIRCLE} B
+                                WHERE A.CODE = B.BRANCH_CODE )) tmp_prev""" 
+            branch_data = read_oracle(spark,circle_master_query)
+        except Exception as e:
+            print(f"Error {e} while reading the data.")
+            spark.stop()
+            sys.exit(1)
+
+        df_gl_balance_final.cache()
+        df_without_circle = df_gl_balance_final.join(
+            F.broadcast(branch_data),
+            on="BRANCH_CODE",
+            how="left"
+        ).filter(col("CIRCLE_CODE").isNotNull())
+
+
+        df_without_circle = df_without_circle.groupBy("BRANCH_CODE","CIRCLE_CODE").agg(
+            F.sum(F.col("BALANCE")).alias("BALANCE"),
+            ).select("BRANCH_CODE","CIRCLE_CODE","BALANCE")
+
+
+        res = transfer(df_without_circle,BATCH_ID_LITERAL, JOURNAL_ID_LITERAL)
+        # res= res.unionByName(df_without_circle)
+        res= res.withColumn(
+                "TRANSACTION_DATE",F.to_date(F.lit(posting_date_str), "yyyy-MM-dd")
+            ).withColumn("SOURCE_FLAG", lit("T")).withColumn("JOURNAL_ID", lit(JOURNAL_ID_LITERAL)).withColumn("NARRATION", concat(F.lit("P and L Transfer - "),col("CIRCLE_CODE") ))
+
+
+
+
+        try:
+            log_etl(spark, process_run_id, "pl_transaction_update",1,"Profit and Loss transaction transfer started writing to db.")
+            overwrite_oracle(res,"P_L_TRANSFER_TRANSACTIONS")
+            if source=="lake":
+                print("Profitloss reading completed from delta lake")
+                log_etl(spark, process_run_id, "pl_reading_strated_deltalake",2,"Profitloss reading completed from delta lake")
+            else:
+                print("Profitloss reading completed from oracle")
+                log_etl(spark, process_run_id, "pl_reading_strated_db",2,"Profitloss reading completed from oracle")
+            log_etl(spark, process_run_id, "pl_transaction_update",2,"Profit and Loss transaction transfer completed writing to db.")
+        except Exception as e:
+            print(f"Error {e} while writing to Transaction table.")
+            log_etl(spark, process_run_id, "pl_transaction_update",3," Error in writing  Profit and Loss transaction transfer  to db.")
+            spark.stop()
+            sys.exit(1)
+
+        transaction_balance = res.select(col("TRANSACTION_DATE").alias("BALANCE_DATE"),"CGL","BRANCH_CODE",(F.col("CREDIT_AMOUNT") + F.col("DEBIT_AMOUNT")).alias("BALANCE")).withColumn("CURRENCY", F.lit("INR"))
+        balance = transaction_balance.groupBy("CGL","BRANCH_CODE","CURRENCY").agg(
+            F.sum(F.col("BALANCE")).alias("BALANCE"),
+            F.first(col("BALANCE_DATE")).alias("BALANCE_DATE"),
+        ).select("CGL","BRANCH_CODE","CURRENCY","BALANCE","BALANCE_DATE").withColumn("INR_BALANCE", col("BALANCE"))
+
+        try:
+            log_etl(spark, process_run_id, "pl_balance_update",1,"Profit and Loss balance transfer started writing to db.")
+            overwrite_oracle(balance,"P_L_TRANSFER_BALANCE")
+            log_etl(spark, process_run_id, "pl_balance_update",2,"Profit and Loss balance transfer completed writing to db.")
+        except Exception as e:
+            print(f"Error {e} while writing to balance Table")
+            log_etl(spark, process_run_id, "pl_balance_update",3,"Error in Profit and Loss balance transfer  to db.")
+            spark.stop()
+            sys.exit(1)
+
+        try:
+
+            query = f"""(SELECT CODE as BRANCH_CODE,BRANCH_CODE as CIRCLE_CODE 
+            FROM {BRANCH} A 
+            LEFT OUTER JOIN {CIRCLE} B ON A.CIRCLE_CODE = B.CIRCLE_CODE) tmp_prev""" 
+            branch_circle = read_oracle(spark,query)
+        except Exception as e:
+            print(f"Error {e} while reading the data.")
+            spark.stop()
+            sys.exit(1)
+
+        # backup_dataframe = balance.filter(col("CGL") == "2110505001")
+        # backup_dataframe = backup_dataframe.join(F.broadcast(branch_circle),
+        #                                         on="BRANCH_CODE",
+        #                                         how="left")
+        # backup_dataframe =backup_dataframe.select(col("BALANCE_DATE").alias("TRANSFER_DATE"), col("BALANCE").alias("PROFIT_LOSS"),
+        #                                         col("CIRCLE_CODE").alias("CIRCLE_BRANCH_CODE"),col("BRANCH_CODE"))
+
+        try:
+            log_etl(spark, process_run_id, "pl_backupdate_update",1,"Profit and Loss backup transfer started writing to db.")
+            overwrite_oracle(df_with_all_PL,"P_L_TRANSFER")
+            log_etl(spark, process_run_id, "pl_backupdate_update",2,"Profit and Loss backup transfer completed writing to db.")
+            log_etl(spark, process_run_id, "transfer_profit_started",2,"Transfer profit pipeline completed")
+        except Exception as e:
+            print(f"Error {e} while writing to P_L_TRANSFER Table")
+            log_etl(spark, process_run_id, "pl_backupdate_update",3,"Profit and Loss backup transfer completed writing to db.")
+        spark.stop()
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error {e} IN transfer profit pipeline")
+        log_etl(spark, process_run_id, "transfer_profit_started",3,"Error in transfer profit pieline")
+        spark.stop()
+        sys.exit(1) 
+
+
+if __name__=="__main__":
+    
+    main(sys.argv)  
