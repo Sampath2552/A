@@ -1,0 +1,241 @@
+CREATE OR REPLACE PROCEDURE PROC_TRANSFER_PROFIT (
+P_POSTING_DATE IN DATE
+)
+AS
+
+V_BATCH_ID      NUMBER;
+V_JOURNAL_ID    NUMBER;
+V_MAX_DATE      DATE;
+
+BEGIN
+
+--------------------------------------------------------------------
+-- TESTING DATE
+--------------------------------------------------------------------
+V_MAX_DATE := DATE '2026-03-31';
+--------------------------------------------------------------------
+-- FETCH IDS
+--------------------------------------------------------------------
+SELECT GET_NEXT_BATCH_ID
+INTO V_BATCH_ID
+FROM DUAL;
+SELECT GET_NEXT_JOURNAL_ID
+INTO V_JOURNAL_ID
+FROM DUAL;
+--------------------------------------------------------------------
+-- INSERT INTO TRANSACTION TABLE
+--------------------------------------------------------------------
+INSERT INTO P_L_TRANSFER_TRANSACTIONS
+(
+    CIRCLE_CODE,
+    BATCH_ID,
+    TRANSACTION_COUNT,
+    BRANCH_CODE,
+    CURRENCY,
+    CGL,
+    CREDIT_AMOUNT,
+    DEBIT_AMOUNT,
+    TRANSACTION_DATE,
+    SOURCE_FLAG,
+    JOURNAL_ID,
+    NARRATION
+)
+WITH LATEST_BALANCE AS (
+    SELECT
+        BRANCH_CODE,
+        CURRENCY,
+        CGL,
+        INR_BALANCE AS BALANCE
+    FROM GL_BALANCE
+    WHERE TRUNC(BALANCE_DATE) = V_MAX_DATE
+      AND SUBSTR(CGL,1,1) IN ('7','8')
+),
+NON_CIRCLE_BRANCH AS (
+    SELECT
+        A.CODE AS BRANCH_CODE,
+        B.BRANCH_CODE AS CIRCLE_CODE
+    FROM BRANCH_MASTER A
+    LEFT JOIN CIRCLE_MASTER B
+           ON A.CIRCLE_CODE = B.CIRCLE_CODE
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM CIRCLE_MASTER X
+        WHERE X.BRANCH_CODE = A.CODE
+    )
+),
+AGG_DATA AS (
+    SELECT
+        N.BRANCH_CODE,
+        N.CIRCLE_CODE,
+        SUM(L.BALANCE) AS BALANCE
+    FROM LATEST_BALANCE L
+    JOIN NON_CIRCLE_BRANCH N
+         ON L.BRANCH_CODE = N.BRANCH_CODE
+    GROUP BY
+        N.BRANCH_CODE,
+        N.CIRCLE_CODE
+),
+GENERATED_DATA AS (
+    ----------------------------------------------------------------
+    -- ENTRY 1
+    ----------------------------------------------------------------
+    SELECT
+        CIRCLE_CODE,
+        V_BATCH_ID AS BATCH_ID,
+        1 AS TRANSACTION_COUNT,
+        BRANCH_CODE,
+        'INR' AS CURRENCY,
+        '2110505001' AS CGL,
+        CASE
+            WHEN BALANCE <= 0
+            THEN -BALANCE
+            ELSE 0
+        END AS CREDIT_AMOUNT,
+        CASE
+            WHEN BALANCE > 0
+            THEN -BALANCE
+            ELSE 0
+        END AS DEBIT_AMOUNT
+    FROM AGG_DATA
+    UNION ALL
+    ----------------------------------------------------------------
+    -- ENTRY 2
+    ----------------------------------------------------------------
+    SELECT
+        CIRCLE_CODE,
+        V_BATCH_ID,
+        1,
+        BRANCH_CODE,
+        'INR',
+        '1106505001',
+        CASE
+            WHEN BALANCE > 0
+            THEN BALANCE
+            ELSE 0
+        END,
+        CASE
+            WHEN BALANCE <= 0
+            THEN BALANCE
+            ELSE 0
+        END
+    FROM AGG_DATA
+    UNION ALL
+    ----------------------------------------------------------------
+    -- ENTRY 3
+    ----------------------------------------------------------------
+    SELECT
+        CIRCLE_CODE,
+        V_BATCH_ID,
+        1,
+        CIRCLE_CODE,
+        'INR',
+        '1106505001',
+        CASE
+            WHEN BALANCE <= 0
+            THEN -BALANCE
+            ELSE 0
+        END,
+        CASE
+            WHEN BALANCE > 0
+            THEN -BALANCE
+            ELSE 0
+        END
+    FROM AGG_DATA
+    UNION ALL
+    ----------------------------------------------------------------
+    -- ENTRY 4
+    ----------------------------------------------------------------
+    SELECT
+        CIRCLE_CODE,
+        V_BATCH_ID,
+        1,
+        CIRCLE_CODE,
+        'INR',
+        '2110505001',
+        CASE
+            WHEN BALANCE > 0
+            THEN BALANCE
+            ELSE 0
+        END,
+        CASE
+            WHEN BALANCE <= 0
+            THEN BALANCE
+            ELSE 0
+        END
+    FROM AGG_DATA
+)
+SELECT
+    G.CIRCLE_CODE,
+    G.BATCH_ID,
+    G.TRANSACTION_COUNT,
+    G.BRANCH_CODE,
+    G.CURRENCY,
+    G.CGL,
+    G.CREDIT_AMOUNT,
+    G.DEBIT_AMOUNT,
+    P_POSTING_DATE,
+    'T',
+    V_JOURNAL_ID,
+    'P and L Transfer - ' || G.CIRCLE_CODE
+FROM GENERATED_DATA G;
+--------------------------------------------------------------------
+-- INSERT INTO BALANCE TABLE
+--------------------------------------------------------------------
+INSERT INTO P_L_TRANSFER_BALANCE
+(
+    CGL,
+    BRANCH_CODE,
+    CURRENCY,
+    BALANCE,
+    BALANCE_DATE,
+    INR_BALANCE
+)
+SELECT
+    CGL,
+    BRANCH_CODE,
+    'INR',
+    SUM(CREDIT_AMOUNT + DEBIT_AMOUNT),
+    P_POSTING_DATE,
+    SUM(CREDIT_AMOUNT + DEBIT_AMOUNT)
+FROM GENERATED_DATA
+GROUP BY
+    CGL,
+    BRANCH_CODE;
+--------------------------------------------------------------------
+-- INSERT INTO BACKUP TABLE
+--------------------------------------------------------------------
+INSERT INTO P_L_TRANSFER
+(
+    BRANCH_CODE,
+    CIRCLE_BRANCH_CODE,
+    PROFIT_LOSS,
+    TRANSFER_DATE
+)
+SELECT
+    A.CODE AS BRANCH_CODE,
+    B.BRANCH_CODE AS CIRCLE_BRANCH_CODE,
+    SUM(L.INR_BALANCE) AS PROFIT_LOSS,
+    P_POSTING_DATE
+FROM GL_BALANCE L
+JOIN BRANCH_MASTER A
+     ON L.BRANCH_CODE = A.CODE
+LEFT JOIN CIRCLE_MASTER B
+     ON A.CIRCLE_CODE = B.CIRCLE_CODE
+WHERE TRUNC(L.BALANCE_DATE) = V_MAX_DATE
+  AND SUBSTR(L.CGL,1,1) IN ('7','8')
+GROUP BY
+    A.CODE,
+    B.BRANCH_CODE;
+--------------------------------------------------------------------
+-- COMMIT
+--------------------------------------------------------------------
+COMMIT;
+
+EXCEPTION
+
+WHEN OTHERS THEN
+    ROLLBACK;
+    RAISE;
+
+END PROC_TRANSFER_PROFIT;
+/
