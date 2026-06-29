@@ -1,0 +1,33 @@
+26/06/29 08:37:32 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+kafka.backend.svc.cluster.local:9092
+26/06/29 08:37:32 INFO SparkContext: Running Spark version 3.5.7
+26/06/29 08:37:32 INFO SparkContext: OS info Linux, 6.10.14-linuxkit, amd64
+26/06/29 08:37:32 INFO SparkContext: Java version 17.0.16
+26/06/29 08:37:32 INFO ResourceUtils: ==============================================================
+26/06/29 08:37:32 INFO ResourceUtils: No custom resources configured for spark.driver.
+26/06/29 08:37:32 INFO ResourceUtils: ==============================================================
+26/06/29 08:37:32 INFO SparkContext: Submitted application: WriteToExcel
+26/06/29 08:37:32 INFO ResourceProfile: Default ResourceProfile created, executor resources: Map(cores -> name: cores, amount: 1, script: , vendor: , memory -> name: memory, amount: 1024, script: , vendor: , offHeap -> name: offHeap, amount: 0, script: , vendor: ), task resources: Map(cpus -> name: cpus, amount: 1.0)
+26/06/29 08:37:32 INFO ResourceProfile: Limiting resource is cpu
+26/06/29 08:37:32 INFO ResourceProfileManager: Added ResourceProfile id: 0
+26/06/29 08:37:32 INFO SecurityManager: Changing view acls to: spark
+26/06/29 08:37:32 INFO SecurityManager: Changing modify acls to: spark
+26/06/29 08:37:32 INFO SecurityManager: Changing view acls groups to:
+26/06/29 08:37:32 INFO SecurityManager: Changing modify acls groups to:
+26/06/29 08:37:32 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: spark; groups with view permissions: EMPTY; users with modify permissions: spark; groups with modify permissions: EMPTY
+26/06/29 08:37:33 INFO Utils: Successfully started service 'sparkDriver' on port 46093.
+26/06/29 08:37:33 INFO SparkEnv: Registering MapOutputTracker
+26/06/29 08:37:33 INFO SparkEnv: Registering BlockManagerMaster
+26/06/29 08:37:33 INFO BlockManagerMasterEndpoint: Using org.apache.spark.storage.DefaultTopologyMapper for getting topology information
+26/06/29 08:37:33 INFO BlockManagerMasterEndpoint: BlockManagerMasterEndpoint up
+26/06/29 08:37:33 INFO SparkEnv: Registering BlockManagerMasterHeartbeat
+26/06/29 08:37:33 INFO DiskBlockManager: Created local directory at /tmp/blockmgr-8d3145b1-df75-4211-8d2c-839837968ad8
+26/06/29 08:37:33 INFO MemoryStore: MemoryStore started with capacity 434.4 MiB
+26/06/29 08:37:33 INFO SparkEnv: Registering OutputCommitCoordinator
+26/06/29 08:37:33 INFO JettyUtils: Start Jetty 0.0.0.0:4040 for SparkUI
+26/06/29 08:37:33 INFO Utils: Successfully started service 'SparkUI' on port 4040.
+26/06/29 08:37:33 INFO SparkContext: Added JAR file:///app/jars/spark-excel_2.13-3.5.1_0.20.4.jar at spark://e6e0b0957335:46093/jars/spark-excel_2.13-3.5.1_0.20.4.jar with timestamp 1782722252821
+26/06/29 08:37:33 INFO SparkContext: Added file file:///app/common.zip at file:///app/common.zip with timestamp 1782722252821
+26/06/29 08:37:33 INFO Utils: Copying /app/common.zip to /tmp/spark-faee0d74-45e3-4202-be3e-c7f38d96107b/userFiles-1d482318-84fc-42f2-87c4-6fc563737344/common.zip
+26/06/29 08:37:33 INFO Executor: Starting executor ID driver on host e6e0b0957335
+26/06/29 08:37:33 INFO Executor: OS info Linux, 6.10.14-linuxkit, amd64
