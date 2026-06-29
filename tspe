@@ -1,0 +1,69 @@
+Traceback (most recent call last):
+  File "/app/Scripts/Technical_Suspense_Details.py", line 36, in <module>
+    main()
+  File "/app/Scripts/Technical_Suspense_Details.py", line 31, in main
+    .save(output_path)
+  File "/opt/spark/python/lib/pyspark.zip/pyspark/sql/readwriter.py", line 1463, in save
+  File "/opt/spark/python/lib/py4j-0.10.9.7-src.zip/py4j/java_gateway.py", line 1322, in __call__
+  File "/opt/spark/python/lib/pyspark.zip/pyspark/errors/exceptions/captured.py", line 179, in deco
+  File "/opt/spark/python/lib/py4j-0.10.9.7-src.zip/py4j/protocol.py", line 326, in get_return_value
+py4j.protocol.Py4JJavaError: An error occurred while calling o51.save.
+: java.lang.NoSuchMethodError: 'void scala.util.matching.Regex.<init>(java.lang.String, scala.collection.immutable.Seq)'
+        at scala.collection.StringOps$.r$extension(StringOps.scala:852)
+        at com.crealytics.spark.excel.DataLocator$.<clinit>(DataLocator.scala:65)
+        at com.crealytics.spark.excel.DefaultSource.createRelation(DefaultSource.scala:73)
+        at org.apache.spark.sql.execution.datasources.SaveIntoDataSourceCommand.run(SaveIntoDataSourceCommand.scala:48)
+        at org.apache.spark.sql.execution.command.ExecutedCommandExec.sideEffectResult$lzycompute(commands.scala:75)
+        at org.apache.spark.sql.execution.command.ExecutedCommandExec.sideEffectResult(commands.scala:73)
+        at org.apache.spark.sql.execution.command.ExecutedCommandExec.executeCollect(commands.scala:84)
+        at org.apache.spark.sql.execution.QueryExecution$$anonfun$eagerlyExecuteCommands$1.$anonfun$applyOrElse$1(QueryExecution.scala:107)
+        at org.apache.spark.sql.execution.SQLExecution$.$anonfun$withNewExecutionId$6(SQLExecution.scala:125)
+        at org.apache.spark.sql.execution.SQLExecution$.withSQLConfPropagated(SQLExecution.scala:201)
+        at org.apache.spark.sql.execution.SQLExecution$.$anonfun$withNewExecutionId$1(SQLExecution.scala:108)
+        at org.apache.spark.sql.SparkSession.withActive(SparkSession.scala:900)
+        at org.apache.spark.sql.execution.SQLExecution$.withNewExecutionId(SQLExecution.scala:66)
+        at org.apache.spark.sql.execution.QueryExecution$$anonfun$eagerlyExecuteCommands$1.applyOrElse(QueryExecution.scala:107)
+        at org.apache.spark.sql.execution.QueryExecution$$anonfun$eagerlyExecuteCommands$1.applyOrElse(QueryExecution.scala:98)
+        at org.apache.spark.sql.catalyst.trees.TreeNode.$anonfun$transformDownWithPruning$1(TreeNode.scala:461)
+        at org.apache.spark.sql.catalyst.trees.CurrentOrigin$.withOrigin(origin.scala:76)
+        at org.apache.spark.sql.catalyst.trees.TreeNode.transformDownWithPruning(TreeNode.scala:461)
+        at org.apache.spark.sql.catalyst.plans.logical.LogicalPlan.org$apache$spark$sql$catalyst$plans$logical$AnalysisHelper$$super$transformDownWithPruning(LogicalPlan.scala:32)
+        at org.apache.spark.sql.catalyst.plans.logical.AnalysisHelper.transformDownWithPruning(AnalysisHelper.scala:267)
+        at org.apache.spark.sql.catalyst.plans.logical.AnalysisHelper.transformDownWithPruning$(AnalysisHelper.scala:263)
+        at org.apache.spark.sql.catalyst.plans.logical.LogicalPlan.transformDownWithPruning(LogicalPlan.scala:32)
+        at org.apache.spark.sql.catalyst.plans.logical.LogicalPlan.transformDownWithPruning(LogicalPlan.scala:32)
+        at org.apache.spark.sql.catalyst.trees.TreeNode.transformDown(TreeNode.scala:437)
+        at org.apache.spark.sql.execution.QueryExecution.eagerlyExecuteCommands(QueryExecution.scala:98)
+        at org.apache.spark.sql.execution.QueryExecution.commandExecuted$lzycompute(QueryExecution.scala:85)
+        at org.apache.spark.sql.execution.QueryExecution.commandExecuted(QueryExecution.scala:83)
+        at org.apache.spark.sql.execution.QueryExecution.assertCommandExecuted(QueryExecution.scala:142)
+        at org.apache.spark.sql.DataFrameWriter.runCommand(DataFrameWriter.scala:869)
+        at org.apache.spark.sql.DataFrameWriter.saveToV1Source(DataFrameWriter.scala:391)
+        at org.apache.spark.sql.DataFrameWriter.saveInternal(DataFrameWriter.scala:364)
+        at org.apache.spark.sql.DataFrameWriter.save(DataFrameWriter.scala:243)
+        at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+        at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+        at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+        at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+        at py4j.reflection.MethodInvoker.invoke(MethodInvoker.java:244)
+        at py4j.reflection.ReflectionEngine.invoke(ReflectionEngine.java:374)
+        at py4j.Gateway.invoke(Gateway.java:282)
+        at py4j.commands.AbstractCommand.invokeMethod(AbstractCommand.java:132)
+        at py4j.commands.CallCommand.execute(CallCommand.java:79)
+        at py4j.ClientServerConnection.waitForCommands(ClientServerConnection.java:182)
+        at py4j.ClientServerConnection.run(ClientServerConnection.java:106)
+        at java.base/java.lang.Thread.run(Thread.java:840)
+
+26/06/29 08:37:37 INFO SparkContext: Invoking stop() from shutdown hook
+26/06/29 08:37:37 INFO SparkContext: SparkContext is stopping with exitCode 0.
+26/06/29 08:37:37 INFO SparkUI: Stopped Spark web UI at http://e6e0b0957335:4040
+26/06/29 08:37:37 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!
+26/06/29 08:37:37 INFO MemoryStore: MemoryStore cleared
+26/06/29 08:37:37 INFO BlockManager: BlockManager stopped
+26/06/29 08:37:37 INFO BlockManagerMaster: BlockManagerMaster stopped
+26/06/29 08:37:37 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!
+26/06/29 08:37:37 INFO SparkContext: Successfully stopped SparkContext
+26/06/29 08:37:37 INFO ShutdownHookManager: Shutdown hook called
+26/06/29 08:37:37 INFO ShutdownHookManager: Deleting directory /tmp/spark-faee0d74-45e3-4202-be3e-c7f38d96107b
+26/06/29 08:37:37 INFO ShutdownHookManager: Deleting directory /tmp/spark-c65a4a78-8f15-40c6-ba1b-aaa8f111afff
+26/06/29 08:37:37 INFO ShutdownHookManager: Deleting directory /tmp/spark-faee0d74-45e3-4202-be3e-c7f38d96107b/pyspark-b50b4504-6026-44e2-baaf-936a21fb0032
