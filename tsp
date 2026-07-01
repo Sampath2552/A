@@ -1,104 +1,60 @@
-from common.createSpark import create_spark_session
-from common.fileUtil import get_hdfs_base
-import common.constants as constants
-from common.dateUtil import get_etl_date
-from pyspark.sql.functions import col , sum as spark_sum
-
-
-CIBA_CGL= "1106505001"
-TECHNICAL_SUSPENSE_CGL="1260505001"
-
-HDFS_BASE = get_hdfs_base()
-
-
-def generate_ciba_details_report(spark):
-    output_path = f"{HDFS_BASE}/reports/2026-06-27/ciba_details/ciba_details_report.xlsx"
-    #path_to_read=f"{HDFS_BASE}/druid-data-lake/2026/JUN/27/GLIF/GLIF_TXNS/"
-    path_to_read=f"{HDFS_BASE}/druid-data-lake/31-03-2026/GLIF"
+def generate_technical_suspense_report(spark,etl_date,process_run_id):
     
-    journal_df = spark.read.format("delta").load(path_to_read).filter(col("CGL") == CIBA_CGL)
-    journal_df.show()
+    input_path,output_path=path_builder(etl_date,CIBA)
+    print(f"Reading from path : {input_path}")
+    base_df = spark.read.format("delta").load(input_path).filter(col("CGL") == TECHNICAL_SUSPENSE_CGL)
+    base_df.cache()
+    batch_df = base_df.filter(col(BATCH_ID_COLUMN).isNotNull())
+    journal_df = base_df.filter(col(BATCH_ID_COLUMN).isNull())
     
-    
-    unbalanced_journals = journal_df.groupBy("JOURNAL_NUMBER", "CURRENCY") \
-       .agg(spark_sum("AMOUNT").alias("total_amount")) \
-       .filter(col("total_amount") != 0) \
-       .select("JOURNAL_NUMBER") \
+    unbalanced_batches = batch_df.groupBy(BATCH_ID_COLUMN,BRANCH_COLUMN,CURRENCY) \
+        .agg(spark_sum(AMOUNT_COLUMN).alias(TOTAL_AMOUNT)) \
+       .filter(col(TOTAL_AMOUNT) != 0) \
+       .select(BATCH_ID_COLUMN) \
        .distinct()
-    print(f"Unbalanced Journals Count:{unbalanced_journals.count()}")   
-    
-    
-    unbalanced_ids_list = [row.JOURNAL_NUMBER for row in unbalanced_journals.collect()]
-    
-    if unbalanced_ids_list:
-    
-        broadcast_ids = spark.sparkContext.broadcast(unbalanced_ids_list)
-        final_unbalanced_df = spark.read.format("delta").load(path_to_read) \
-            .filter(col("JOURNAL_NUMBER").isin(broadcast_ids.value))
-        final_unbalanced_df.show()
+    unbalanced_batches_ids_list = [row.JOURNAL_NUMBER for row in unbalanced_batches.collect()]
+    if unbalanced_batches_ids_list:
+        broadcast_batch_ids = spark.sparkContext.broadcast(unbalanced_batches_ids_list)
+        unbalanced_batches_df = spark.read.format("delta").load(input_path) \
+                .filter(col(BATCH_ID_COLUMN).isin(broadcast_batch_ids.value)) 
     else:
-        final_unbalanced_df = spark.createDataFrame([], schema=journal_df.schema)
-        print("No unbalanced journals found.")
-    
-    
-    
-#     base_df.createOrReplaceTempView("glif_records")
-    
-#     unbalanced_journals = spark.sql("""
-#        SELECT *
-#        FROM glif_records
-#        WHERE JOURNAL_NUMBER IN (
-#            SELECT JOURNAL_NUMBER
-#            FROM glif_records
-#            GROUP BY JOURNAL_NUMBER, CURRENCY
-#            HAVING SUM(AMOUNT) != 0
-#        )
-#    """)
-#     unbalanced_journals.show(50, truncate=False)
-    
-#     print(f"Count of unbalanced_journals :{unbalanced_journals.count()}")
-       
-       
-    # final_df = journal_df.join(unbalanced_journals, on="JOURNAL_NUMBER", how="left_semi")
-    print(f"Final Count :{final_unbalanced_df.count()}")
-    final_unbalanced_df.limit(150).write \
-    .format("com.crealytics.spark.excel") \
-    .option("dataAddress", "'CIBA'!A1") \
-    .option("header", "true") \
-    .option("maxRowsInMemory", 5000) \
-    .mode("overwrite") \
-    .save(output_path)    
+        unbalanced_batches_df = spark.createDataFrame([], schema=base_df.schema)
+        print("No Non-Zero Batches found.")
+        #log_etl(spark, process_run_id, "journal_extract",2,"Completed Extracting Non-Zero journals. No Non-Zero Journals found.") 
+        
 
-
-def generate_technical_suspense_report(spark):
-    pass
-    path_to_read=f"{HDFS_BASE}/druid-data-lake/31-03-2026/GLIF"
-    #TO ADD: Filter to get BATCH ID which are not null
-    base_df = spark.read.format("delta").load(path_to_read).filter(col("CGL") == TECHNICAL_SUSPENSE_CGL)
-    
-    
-    unbalanced_batches = base_df.groupBy("BATCH_ID") \
-        .agg(spark_sum("AMOUNT").alias("total_amount")) \
-       .filter(col("total_amount") != 0) \
-       .select("JOURNAL_NUMBER") \
+        
+    unbalanced_journals = journal_df.groupBy(JOURNAL_NUMBER,BRANCH_COLUMN,CURRENCY) \
+        .agg(spark_sum(AMOUNT_COLUMN).alias(TOTAL_AMOUNT)) \
+       .filter(col(TOTAL_AMOUNT) != 0) \
+       .select(BATCH_ID_COLUMN) \
        .distinct()
     
-    unbalanced_batches_journals_list =    [row.JOURNAL_NUMBER for row in unbalanced_batches.collect()]
-    broadcast_ids = spark.sparkContext.broadcast(unbalanced_batches_journals_list)
-    unbalanced_batches_df =  spark.read.format("delta").load(path_to_read) \
-            .filter(col("JOURNAL_NUMBER").isin(broadcast_ids.value))
+    unbalanced_journal_ids_list = [row.JOURNAL_NUMBER for row in unbalanced_journals.collect()]
     
-
-
-
-
-def main():
+    if unbalanced_journal_ids_list:
+        broadcast_journal_ids = spark.sparkContext.broadcast(unbalanced_journal_ids_list)
+        unbalanced_journals_df = spark.read.format("delta").load(input_path) \
+            .filter(col(JOURNAL_NUMBER).isin(broadcast_journal_ids.value)) 
+        
+    else:
+        unbalanced_journals_df = spark.createDataFrame([], schema=journal_df.schema)
+        print("No Journals Found for the date")
     
-    spark = create_spark_session("Technical_Suspense_Details",HDFS_BASE)
     
-    #generate_ciba_details_report(spark)
-    generate_technical_suspense_report(spark)
     
-
-if __name__ == "__main__":
-    main()    
+    unbalanced_batches_df.write \
+        .format("com.crealytics.spark.excel") \
+        .option("dataAddress", "'BATCH'!A1") \
+        .option("header", "true") \
+        .option("maxRowsInMemory", 5000) \
+        .mode("overwrite") \
+        .save(output_path) 
+        
+    unbalanced_journals_df.write \
+        .format("com.crealytics.spark.excel") \
+        .option("dataAddress", "'JOURNAL'!A1") \
+        .option("header", "true") \
+        .option("maxRowsInMemory", 5000) \
+        .mode("overwrite") \
+        .save(output_path) 
