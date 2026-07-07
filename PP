@@ -1,0 +1,70 @@
+select
+    coalesce(a.cgl, b.cgl) as CGL,
+    a.rpt as NWSA_AVAILABLE,
+    b.rpt as BSA_AVAILABLE,
+    a.HEAD_CODE as nwsa_code,
+    b.head_code as bsa_code
+from
+    (
+        select
+            CGL,
+            'n' as rpt,
+            max(HEAD_CODE) || '/' || min(HEAD_CODE) as HEAD_CODE
+        from
+            rb_parsed_template
+        where
+            run_id in ('nwsa_report')
+            and (
+                HEAD_CODE like 'A%'
+                or HEAD_CODE like 'L%'
+            )
+        group by
+            CGL
+        having
+            count(1) > 1
+        union all
+        select
+            CGL,
+            'n' as rpt,
+            max(HEAD_CODE) as HEAD_CODE
+        from
+            rb_parsed_template
+        where
+            run_id in ('nwsa_report')
+            and (
+                HEAD_CODE like 'A%'
+                or HEAD_CODE like 'L%'
+            )
+        group by
+            CGL
+        having
+            count(1) = 1
+    ) a
+    full outer join (
+        select
+            CGL,
+            substr (run_id, 1, 1) rpt,
+            min(HEAD_CODE) as HEAD_CODE
+        from
+            rb_parsed_template
+        where
+            run_id in ('pnl_report', 'ysa_report')
+        group by
+            substr (run_id, 1, 1),
+            CGL
+        having
+            count(1) = 1
+        union all
+        select
+            CGL,
+            'y' rpt,
+            min(HEAD_CODE) || '/' || max(HEAD_CODE) as HEAD_CODE
+        from
+            rb_parsed_template
+        where
+            run_id in ('ysa_report')
+        group by
+            CGL
+        having
+            count(1) > 1
+    ) b on a.cgl = b.cgl
