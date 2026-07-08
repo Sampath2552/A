@@ -1,0 +1,68 @@
+WITH base AS
+(
+
+    SELECT
+
+        COALESCE(a.cgl, b.cgl) AS cgl,
+
+        a.rpt AS nwsa_available,
+
+        b.rpt AS bsa_available,
+
+        a.nwsa_headcode,
+
+        b.bsa_headcode
+
+    FROM
+
+    (
+
+        SELECT
+
+            cgl,
+
+            'n' AS rpt,
+
+            JSON_ARRAYAGG(head_code ORDER BY head_code) AS nwsa_headcode
+
+        FROM rb_parsed_template
+
+        WHERE run_id = 'nwsa_report'
+
+          AND (head_code not LIKE 'S%' AND head_code not LIKE 'N%')
+
+        GROUP BY cgl
+
+    ) a
+
+    FULL OUTER JOIN
+
+    (
+
+        SELECT
+
+            cgl,
+
+            SUBSTR(run_id, 1, 1) AS rpt,
+
+            JSON_ARRAYAGG(head_code ORDER BY head_code) AS bsa_headcode
+
+        FROM rb_parsed_template
+
+        WHERE run_id IN ('pnl_report', 'ysa_report')
+
+        GROUP BY
+
+            cgl,
+
+            SUBSTR(run_id, 1, 1)
+
+    ) b
+
+    ON a.cgl = b.cgl
+
+)
+
+SELECT *
+FROM base;
+ 
